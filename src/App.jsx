@@ -1,25 +1,41 @@
-import { useState } from 'react';
-import { LayoutDashboard, ClipboardCheck, RefreshCw } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { LayoutDashboard, ClipboardCheck, RefreshCw, TrendingUp } from 'lucide-react';
+import { buildApprovalsDataset } from './data/approvals';
+import { buildReceiptsDataset } from './data/receipts';
+import { parseApprovalsCSV, APPROVALS_EXPECTED_COLUMNS } from './utils/approvalsParser';
+import { parseReceiptsCSV, RECEIPTS_EXPECTED_COLUMNS } from './utils/receiptsParser';
 import Dashboard1 from './components/Dashboard1';
 import Dashboard2 from './components/Dashboard2';
+import Dashboard3 from './components/Dashboard3';
 
 const TABS = [
-  {
-    id: 'approvals',
-    label: 'Pending Approvals',
-    icon: ClipboardCheck,
-    subtitle: 'SWWUSERWI · RBKP · USR21',
-  },
-  {
-    id: 'receipts',
-    label: 'GR/IR Reconciliation',
-    icon: RefreshCw,
-    subtitle: 'EKKO · EKPO · EKBE',
-  },
+  { id: 'approvals', label: 'Pending Approvals',     icon: ClipboardCheck, subtitle: 'SWWUSERWI · RBKP · USR21' },
+  { id: 'receipts',  label: 'GR/IR Reconciliation',  icon: RefreshCw,      subtitle: 'EKKO · EKPO · EKBE'       },
+  { id: 'trends',    label: 'Weekly Trends',          icon: TrendingUp,     subtitle: 'Approvals & Receipts'      },
 ];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('approvals');
+
+  // ── Uploaded data (lifted here so Dashboard3 can access both) ───────────
+  const [uploadedApprovals, setUploadedApprovals] = useState(null);
+  const [uploadedReceipts,  setUploadedReceipts]  = useState(null);
+
+  const sampleApprovals = useMemo(() => buildApprovalsDataset(), []);
+  const sampleReceipts  = useMemo(() => buildReceiptsDataset(),  []);
+
+  const approvalsData = uploadedApprovals ?? sampleApprovals;
+  const receiptsData  = uploadedReceipts  ?? sampleReceipts;
+
+  function handleApprovalsUpload(rows) {
+    const { data } = parseApprovalsCSV(rows);
+    if (data.length) setUploadedApprovals(data);
+  }
+  function handleReceiptsUpload(rows) {
+    const { data } = parseReceiptsCSV(rows);
+    if (data.length) setUploadedReceipts(data);
+  }
+
   const now = new Date().toLocaleString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
@@ -37,7 +53,7 @@ export default function App() {
                 SAP S/4HANA — Accounts Payable Dashboard
               </h1>
               <p className="text-xs text-blue-300 leading-tight">
-                Accounts Payable Manager View  ·  Company Code 1000
+                Accounts Payable Manager View · Company Code 1000
               </p>
             </div>
           </div>
@@ -53,8 +69,10 @@ export default function App() {
         <div className="max-w-screen-xl mx-auto px-4 sm:px-6">
           <nav className="flex gap-0" role="tablist">
             {TABS.map((tab) => {
-              const Icon = tab.icon;
+              const Icon   = tab.icon;
               const active = activeTab === tab.id;
+              // Show upload indicator dot on trends tab if data is loaded
+              const hasDot = tab.id === 'trends' && (uploadedApprovals || uploadedReceipts);
               return (
                 <button
                   key={tab.id}
@@ -62,7 +80,7 @@ export default function App() {
                   aria-selected={active}
                   onClick={() => setActiveTab(tab.id)}
                   className={`
-                    flex items-center gap-2 px-5 py-3 text-xs font-semibold border-b-2 transition-all
+                    relative flex items-center gap-2 px-5 py-3 text-xs font-semibold border-b-2 transition-all
                     focus-visible:outline focus-visible:outline-sap-blue
                     ${active
                       ? 'border-sap-blue text-sap-blue bg-sap-lightblue'
@@ -75,6 +93,9 @@ export default function App() {
                   <span className={`hidden sm:inline text-xs font-normal font-mono ml-1 ${active ? 'text-sap-blue' : 'text-sap-subtext'}`}>
                     {tab.subtitle}
                   </span>
+                  {hasDot && (
+                    <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-green-500" title="Data loaded" />
+                  )}
                 </button>
               );
             })}
@@ -84,13 +105,35 @@ export default function App() {
 
       {/* Dashboard Content */}
       <main className="max-w-screen-xl mx-auto px-4 sm:px-6 py-5">
-        {activeTab === 'approvals' ? <Dashboard1 /> : <Dashboard2 />}
+        {activeTab === 'approvals' && (
+          <Dashboard1
+            approvalsData={approvalsData}
+            expectedColumns={APPROVALS_EXPECTED_COLUMNS}
+            onUpload={handleApprovalsUpload}
+            onClear={() => setUploadedApprovals(null)}
+            hasUpload={!!uploadedApprovals}
+          />
+        )}
+        {activeTab === 'receipts' && (
+          <Dashboard2
+            receiptsData={receiptsData}
+            expectedColumns={RECEIPTS_EXPECTED_COLUMNS}
+            onUpload={handleReceiptsUpload}
+            onClear={() => setUploadedReceipts(null)}
+            hasUpload={!!uploadedReceipts}
+          />
+        )}
+        {activeTab === 'trends' && (
+          <Dashboard3
+            approvalsData={approvalsData}
+            receiptsData={receiptsData}
+          />
+        )}
       </main>
 
-      {/* Footer */}
       <footer className="max-w-screen-xl mx-auto px-4 sm:px-6 py-4 mt-2">
         <p className="text-xs text-sap-subtext text-center">
-          Data sourced from SAP S/4HANA  ·  Company Code 1000  ·  For production use, connect via SAP OData APIs or BW extractors
+          Data sourced from SAP S/4HANA · Company Code 1000 · For production use, connect via SAP OData APIs or BW extractors
         </p>
       </footer>
     </div>

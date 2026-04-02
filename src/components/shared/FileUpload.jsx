@@ -1,19 +1,54 @@
 import { useRef, useState } from 'react';
-import { Upload, FileText, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, X, ChevronRight } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 
 export default function FileUpload({ label, expectedColumns, onData, onClear, hasData }) {
   const inputRef = useRef();
-  const [dragOver, setDragOver] = useState(false);
-  const [status, setStatus] = useState(null); // { type: 'success'|'error', message }
-  const [fileName, setFileName] = useState(null);
+  const [dragOver, setDragOver]     = useState(false);
+  const [status, setStatus]         = useState(null);
+  const [fileName, setFileName]     = useState(null);
+  const [sheets, setSheets]         = useState(null);   // list of sheet names from workbook
+  const [workbook, setWorkbook]     = useState(null);   // raw XLSX workbook
 
-  function parseFile(file) {
-    if (!file) return;
-    if (!file.name.match(/\.(csv|txt)$/i)) {
-      setStatus({ type: 'error', message: 'Please upload a CSV file (.csv or .txt)' });
+  // ── Parse Excel ────────────────────────────────────────────────────────────
+  function parseExcel(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+        setWorkbook(wb);
+        setFileName(file.name);
+
+        if (wb.SheetNames.length === 1) {
+          // Only one sheet — use it immediately
+          loadSheet(wb, wb.SheetNames[0]);
+        } else {
+          // Multiple sheets — let user pick
+          setSheets(wb.SheetNames);
+          setStatus(null);
+        }
+      } catch (err) {
+        setStatus({ type: 'error', message: `Could not read Excel file: ${err.message}` });
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function loadSheet(wb, sheetName) {
+    const ws   = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+    if (!rows.length) {
+      setStatus({ type: 'error', message: `Sheet "${sheetName}" is empty.` });
       return;
     }
+    setSheets(null);
+    setStatus({ type: 'success', message: `${rows.length} rows loaded from sheet "${sheetName}" in ${fileName}` });
+    onData(rows);
+  }
+
+  // ── Parse CSV ──────────────────────────────────────────────────────────────
+  function parseCSV(file) {
     setFileName(file.name);
     Papa.parse(file, {
       header: true,
@@ -25,34 +60,51 @@ export default function FileUpload({ label, expectedColumns, onData, onClear, ha
           return;
         }
         setStatus({ type: 'success', message: `${results.data.length} rows loaded from ${file.name}` });
-        onData(results.data, results.meta.fields);
+        onData(results.data);
       },
-      error: (err) => {
-        setStatus({ type: 'error', message: `Parse error: ${err.message}` });
-      },
+      error: (err) => setStatus({ type: 'error', message: `Parse error: ${err.message}` }),
     });
+  }
+
+  // ── Entry point ───────────────────────────────────────────────────────────
+  function handleFile(file) {
+    if (!file) return;
+    setSheets(null);
+    setWorkbook(null);
+    setStatus(null);
+
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (['xlsx', 'xls', 'xlsm', 'xlsb'].includes(ext)) {
+      parseExcel(file);
+    } else if (['csv', 'txt'].includes(ext)) {
+      parseCSV(file);
+    } else {
+      setStatus({ type: 'error', message: 'Unsupported file type. Please upload an Excel (.xlsx) or CSV file.' });
+    }
   }
 
   function handleDrop(e) {
     e.preventDefault();
     setDragOver(false);
-    parseFile(e.dataTransfer.files[0]);
+    handleFile(e.dataTransfer.files[0]);
   }
 
   function handleClear() {
     setStatus(null);
     setFileName(null);
+    setSheets(null);
+    setWorkbook(null);
     if (inputRef.current) inputRef.current.value = '';
     onClear();
   }
 
   return (
-    <div className="rounded-lg border-2 border-dashed border-sap-border bg-white p-4">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        {/* Left: drop zone */}
+    <div className="rounded-lg border-2 border-dashed border-sap-border bg-white p-4 space-y-3">
+      <div className="flex items-start gap-4 flex-wrap">
+        {/* Drop zone */}
         <div
           className={`flex-1 min-w-[200px] flex flex-col items-center justify-center gap-2 rounded-lg p-4 cursor-pointer transition-colors ${
-            dragOver ? 'bg-sap-lightblue border-sap-blue border-2' : 'bg-sap-gray hover:bg-sap-lightblue'
+            dragOver ? 'bg-sap-lightblue border-2 border-sap-blue' : 'bg-sap-gray hover:bg-sap-lightblue'
           }`}
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
@@ -61,53 +113,66 @@ export default function FileUpload({ label, expectedColumns, onData, onClear, ha
         >
           <Upload size={20} className="text-sap-blue" />
           <div className="text-center">
-            <p className="text-xs font-semibold text-sap-text">
-              {label}
-            </p>
+            <p className="text-xs font-semibold text-sap-text">{label}</p>
             <p className="text-xs text-sap-subtext mt-0.5">
-              Drag & drop or click to browse — CSV format
+              Drag & drop or click — Excel (.xlsx) or CSV
             </p>
           </div>
           <input
             ref={inputRef}
             type="file"
-            accept=".csv,.txt"
+            accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.txt"
             className="hidden"
-            onChange={(e) => parseFile(e.target.files[0])}
+            onChange={(e) => handleFile(e.target.files[0])}
           />
         </div>
 
-        {/* Right: expected columns hint */}
+        {/* Expected columns hint */}
         <div className="text-xs text-sap-subtext max-w-xs">
-          <p className="font-semibold text-sap-text mb-1">Expected SAP columns:</p>
+          <p className="font-semibold text-sap-text mb-1">Expected columns (raw data sheet):</p>
           <div className="flex flex-wrap gap-1">
             {expectedColumns.map((col) => (
-              <span key={col} className="font-mono bg-sap-gray px-1.5 py-0.5 rounded text-xs">
-                {col}
-              </span>
+              <span key={col} className="font-mono bg-sap-gray px-1.5 py-0.5 rounded">{col}</span>
             ))}
           </div>
-          <p className="mt-2 text-sap-subtext">
-            Extra columns are ignored. Column names are case-insensitive.
-          </p>
+          <p className="mt-1.5">Extra columns ignored. Names are case-insensitive.</p>
         </div>
       </div>
 
+      {/* Sheet picker (Excel with multiple sheets) */}
+      {sheets && (
+        <div className="bg-sap-lightblue border border-sap-blue rounded-lg p-3">
+          <p className="text-xs font-semibold text-sap-blue mb-2">
+            Multiple sheets found in <span className="font-mono">{fileName}</span> — select the raw data sheet:
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {sheets.map((name) => (
+              <button
+                key={name}
+                onClick={() => loadSheet(workbook, name)}
+                className="flex items-center gap-1 text-xs bg-white border border-sap-blue text-sap-blue px-3 py-1.5 rounded font-medium hover:bg-sap-blue hover:text-white transition-colors"
+              >
+                <ChevronRight size={12} />
+                {name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Status bar */}
       {status && (
-        <div className={`mt-3 flex items-center justify-between gap-2 rounded px-3 py-2 text-xs ${
+        <div className={`flex items-center justify-between gap-2 rounded px-3 py-2 text-xs ${
           status.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
         }`}>
           <div className="flex items-center gap-1.5">
-            {status.type === 'success'
-              ? <CheckCircle size={13} />
-              : <AlertCircle size={13} />}
+            {status.type === 'success' ? <CheckCircle size={13} /> : <AlertCircle size={13} />}
             <span>{status.message}</span>
           </div>
           {status.type === 'success' && (
             <button
               onClick={handleClear}
-              className="flex items-center gap-1 text-xs text-sap-subtext hover:text-red-600 font-medium ml-4"
+              className="flex items-center gap-1 text-xs text-sap-subtext hover:text-red-600 font-medium ml-4 flex-shrink-0"
             >
               <X size={12} /> Revert to sample data
             </button>

@@ -1,43 +1,39 @@
-import { useMemo, useState } from 'react';
-import { buildReceiptsDataset, buildVendorSummary } from '../../data/receipts';
-import { parseReceiptsCSV, RECEIPTS_EXPECTED_COLUMNS } from '../../utils/receiptsParser';
+import { useState, useMemo } from 'react';
+import { buildVendorSummary } from '../../data/receipts';
 import FileUpload from '../shared/FileUpload';
 import ReceiptsKPIs from './ReceiptsKPIs';
 import VendorHeatmap from './VendorHeatmap';
 import AgingTrend from './AgingTrend';
 import ExceptionsTable from './ExceptionsTable';
 
-export default function Dashboard2() {
-  const sampleExceptions = useMemo(() => buildReceiptsDataset(), []);
-  const [uploadedData, setUploadedData]   = useState(null);
-  const [parseErrors, setParseErrors]     = useState([]);
+export default function Dashboard2({ receiptsData, expectedColumns, onUpload, onClear, hasUpload }) {
+  const [parseErrors, setParseErrors] = useState([]);
 
-  const exceptions    = uploadedData ?? sampleExceptions;
-  const vendorSummary = useMemo(() => buildVendorSummary(exceptions), [exceptions]);
+  const vendorSummary = useMemo(() => buildVendorSummary(receiptsData), [receiptsData]);
 
   function handleUpload(rows) {
-    const { data: parsed, errors } = parseReceiptsCSV(rows);
-    setParseErrors(errors);
-    setUploadedData(parsed.length ? parsed : null);
+    import('../../utils/receiptsParser').then(({ parseReceiptsCSV }) => {
+      const { errors } = parseReceiptsCSV(rows);
+      setParseErrors(errors);
+    });
+    onUpload(rows);
   }
 
   function handleClear() {
-    setUploadedData(null);
     setParseErrors([]);
+    onClear();
   }
 
   return (
     <div className="space-y-5">
-      {/* Upload Panel */}
       <FileUpload
         label="Upload GR/IR Reconciliation Report (MB5S / MRBR export)"
-        expectedColumns={RECEIPTS_EXPECTED_COLUMNS}
+        expectedColumns={expectedColumns}
         onData={handleUpload}
         onClear={handleClear}
-        hasData={!!uploadedData}
+        hasData={hasUpload}
       />
 
-      {/* Parse errors */}
       {parseErrors.length > 0 && (
         <div className="bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 text-xs text-amber-800">
           <p className="font-semibold mb-1">{parseErrors.length} row(s) skipped:</p>
@@ -48,19 +44,19 @@ export default function Dashboard2() {
         </div>
       )}
 
-      <ReceiptsKPIs data={exceptions} />
+      <ReceiptsKPIs data={receiptsData} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="bg-white rounded-lg border border-sap-border shadow-sm p-5">
           <VendorHeatmap vendors={vendorSummary} />
         </div>
         <div className="bg-white rounded-lg border border-sap-border shadow-sm p-5">
-          <AgingTrend data={exceptions} />
+          <AgingTrend data={receiptsData} />
         </div>
       </div>
 
       <div className="bg-white rounded-lg border border-sap-border shadow-sm p-5">
-        <ExceptionsTable data={exceptions} />
+        <ExceptionsTable data={receiptsData} />
       </div>
     </div>
   );
