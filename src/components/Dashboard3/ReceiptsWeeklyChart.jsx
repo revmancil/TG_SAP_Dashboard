@@ -4,7 +4,7 @@ import {
 } from 'recharts';
 import SectionHeader from '../shared/SectionHeader';
 
-function fmtVal(n) {
+function fmtVal(n = 0) {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000)     return `$${(n / 1_000).toFixed(0)}K`;
   return `$${n}`;
@@ -39,7 +39,9 @@ const BarLabel = ({ x, y, width, value }) => {
   );
 };
 
-export default function ReceiptsWeeklyChart({ data }) {
+export default function ReceiptsWeeklyChart({ data, totalCount, totalValue }) {
+  const chartCount = data.reduce((s, d) => s + d.grWithoutIR + d.irWithoutGR, 0);
+  const chartValue = data.reduce((s, d) => s + d.totalValue, 0);
   const maxCount = Math.max(...data.map((d) => d.grWithoutIR + d.irWithoutGR), 1);
 
   return (
@@ -108,6 +110,21 @@ export default function ReceiptsWeeklyChart({ data }) {
           />
         </ComposedChart>
       </ResponsiveContainer>
+
+      {/* Totals footer */}
+      <div className="mt-3 flex items-center justify-between text-xs border-t border-sap-border pt-2">
+        <span className="text-sap-subtext">
+          {data.length} week{data.length !== 1 ? 's' : ''} shown
+        </span>
+        <span className="font-semibold text-sap-text">
+          Total: {chartCount} items · {fmtVal(chartValue)}
+          {totalCount !== undefined && chartCount !== totalCount && (
+            <span className="text-amber-600 font-normal ml-2">
+              (dashboard: {totalCount} items · {fmtVal(totalValue)})
+            </span>
+          )}
+        </span>
+      </div>
     </div>
   );
 }

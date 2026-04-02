@@ -9,17 +9,46 @@ import WeeklyKPIs from './WeeklyKPIs';
 const APPROVALS_WEEKLY_COLS = ['Week Ending', 'Week Of', '# Invoices', 'Total Amount', 'Avg Days'];
 const RECEIPTS_WEEKLY_COLS  = ['Week Ending', 'Week Of', 'Count', 'Total Amount', '$ Value'];
 
-export default function Dashboard3({ approvalsData, receiptsData }) {
-  // Computed from raw data (fallback)
-  const computedApprovalsWeekly = useMemo(() => buildApprovalsWeekly(approvalsData), [approvalsData]);
-  const computedReceiptsWeekly  = useMemo(() => buildReceiptsWeekly(receiptsData),   [receiptsData]);
+function fmtVal(n) {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000)     return `$${(n / 1_000).toFixed(1)}K`;
+  return `$${n}`;
+}
 
-  // Uploaded from weekly analysis sheets (preferred)
+function ReconciliationBanner({ chartTotal, chartValue, dashTotal, dashValue, label }) {
+  const countMatch = chartTotal === dashTotal;
+  const valueMatch = Math.abs(chartValue - dashValue) < 1;
+  if (countMatch && valueMatch) return null;
+  return (
+    <div className="flex items-start gap-2 bg-amber-50 border border-amber-300 rounded-lg px-4 py-2.5 text-xs text-amber-800">
+      <span className="font-bold mt-0.5">⚠</span>
+      <div>
+        <span className="font-semibold">{label} — totals differ from detail dashboard. </span>
+        Chart bars total: <span className="font-semibold">{chartTotal} items / {fmtVal(chartValue)}</span>
+        {' '}vs detail dashboard: <span className="font-semibold">{dashTotal} items / {fmtVal(dashValue)}</span>.
+        {' '}This is expected when the uploaded weekly analysis sheet includes historical weeks
+        (items already resolved). The detail dashboard shows only currently open items.
+      </div>
+    </div>
+  );
+}
+
+export default function Dashboard3({ approvalsData, receiptsData }) {
+  // Computed from raw data — returns { weekly, totalCount, totalValue }
+  const computedApprovals = useMemo(() => buildApprovalsWeekly(approvalsData), [approvalsData]);
+  const computedReceipts  = useMemo(() => buildReceiptsWeekly(receiptsData),   [receiptsData]);
+
   const [uploadedApprovalsWeekly, setUploadedApprovalsWeekly] = useState(null);
   const [uploadedReceiptsWeekly,  setUploadedReceiptsWeekly]  = useState(null);
 
-  const approvalsWeekly = uploadedApprovalsWeekly ?? computedApprovalsWeekly;
-  const receiptsWeekly  = uploadedReceiptsWeekly  ?? computedReceiptsWeekly;
+  const approvalsWeekly = uploadedApprovalsWeekly ?? computedApprovals.weekly;
+  const receiptsWeekly  = uploadedReceiptsWeekly  ?? computedReceipts.weekly;
+
+  // Chart bar totals for reconciliation check
+  const approvalsChartCount = approvalsWeekly.reduce((s, w) => s + w.count, 0);
+  const approvalsChartValue = approvalsWeekly.reduce((s, w) => s + w.value, 0);
+  const receiptsChartCount  = receiptsWeekly.reduce((s, w) => s + (w.grWithoutIR + w.irWithoutGR), 0);
+  const receiptsChartValue  = receiptsWeekly.reduce((s, w) => s + w.totalValue, 0);
 
   function handleApprovalsWeeklyUpload(rows) {
     const parsed = parseApprovalsWeekly(rows);
@@ -32,7 +61,7 @@ export default function Dashboard3({ approvalsData, receiptsData }) {
 
   return (
     <div className="space-y-5">
-      {/* Upload panels for weekly analysis sheets */}
+      {/* Upload panels */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <FileUpload
           label="Upload Approvals Weekly Analysis Sheet"
@@ -50,32 +79,55 @@ export default function Dashboard3({ approvalsData, receiptsData }) {
         />
       </div>
 
-      {/* Source indicator */}
-      <div className="flex gap-4 text-xs text-sap-subtext">
-        <span>
-          Approvals trend: <span className={`font-medium ${uploadedApprovalsWeekly ? 'text-green-600' : 'text-sap-subtext'}`}>
+      {/* Source + reconciliation */}
+      <div className="flex gap-4 text-xs text-sap-subtext flex-wrap">
+        <span>Approvals trend:&nbsp;
+          <span className={`font-medium ${uploadedApprovalsWeekly ? 'text-green-600' : 'text-sap-subtext'}`}>
             {uploadedApprovalsWeekly ? 'Uploaded weekly analysis' : 'Computed from raw data'}
           </span>
         </span>
         <span>·</span>
-        <span>
-          Receipts trend: <span className={`font-medium ${uploadedReceiptsWeekly ? 'text-green-600' : 'text-sap-subtext'}`}>
+        <span>Receipts trend:&nbsp;
+          <span className={`font-medium ${uploadedReceiptsWeekly ? 'text-green-600' : 'text-sap-subtext'}`}>
             {uploadedReceiptsWeekly ? 'Uploaded weekly analysis' : 'Computed from raw data'}
           </span>
         </span>
       </div>
 
+      <ReconciliationBanner
+        label="Pending Approvals"
+        chartTotal={approvalsChartCount}
+        chartValue={approvalsChartValue}
+        dashTotal={computedApprovals.totalCount}
+        dashValue={computedApprovals.totalValue}
+      />
+      <ReconciliationBanner
+        label="Pending Receipts"
+        chartTotal={receiptsChartCount}
+        chartValue={receiptsChartValue}
+        dashTotal={computedReceipts.totalCount}
+        dashValue={computedReceipts.totalValue}
+      />
+
       <WeeklyKPIs approvalsWeekly={approvalsWeekly} receiptsWeekly={receiptsWeekly} />
 
       {approvalsWeekly.length > 0 && (
         <div className="bg-white rounded-lg border border-sap-border shadow-sm p-5">
-          <ApprovalsWeeklyChart data={approvalsWeekly} />
+          <ApprovalsWeeklyChart
+            data={approvalsWeekly}
+            totalCount={computedApprovals.totalCount}
+            totalValue={computedApprovals.totalValue}
+          />
         </div>
       )}
 
       {receiptsWeekly.length > 0 && (
         <div className="bg-white rounded-lg border border-sap-border shadow-sm p-5">
-          <ReceiptsWeeklyChart data={receiptsWeekly} />
+          <ReceiptsWeeklyChart
+            data={receiptsWeekly}
+            totalCount={computedReceipts.totalCount}
+            totalValue={computedReceipts.totalValue}
+          />
         </div>
       )}
 
