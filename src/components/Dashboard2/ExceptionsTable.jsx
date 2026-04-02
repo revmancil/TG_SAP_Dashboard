@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, X } from 'lucide-react';
 import SapBadge from '../shared/SapBadge';
 import SectionHeader from '../shared/SectionHeader';
+import SortFilterHeader from '../shared/SortFilterHeader';
+import { useSortFilter } from '../../hooks/useSortFilter';
 
 function fmt(n) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
@@ -18,56 +20,97 @@ function AgeBadge({ days }) {
   return <SapBadge variant="success">{days}d</SapBadge>;
 }
 
-export default function ExceptionsTable({ data }) {
-  const [filter, setFilter] = useState('ALL');
+const COLUMNS = [
+  { label: 'PO / Invoice #',   col: 'EBELN',            align: 'left'  },
+  { label: 'Supplier',         col: 'VENDOR_NAME',      align: 'left'  },
+  { label: 'Material / Svc',   col: 'TXZ01',            align: 'left'  },
+  { label: 'Requester',        col: 'REQUESTER',        align: 'left'  },
+  { label: 'Qty GR',           col: 'QTY_GR',           align: 'right' },
+  { label: 'Qty IR',           col: 'QTY_IR',           align: 'right' },
+  { label: 'Open Balance',     col: 'BALANCE_QTY',      align: 'right' },
+  { label: 'Open Value',       col: 'BALANCE_VAL',      align: 'right' },
+  { label: 'Age (days)',       col: 'DAYS_OPEN',        align: 'right' },
+  { label: 'Type',             col: 'DISCREPANCY_TYPE', align: 'left'  },
+  { label: 'SAP Txn',         col: 'SAP_TRANSACTION',  align: 'left', noFilter: true },
+];
 
-  const filtered = filter === 'ALL'
+export default function ExceptionsTable({ data }) {
+  const [typeFilter, setTypeFilter] = useState('ALL');
+
+  const typeFiltered = typeFilter === 'ALL'
     ? data
-    : data.filter((d) => d.DISCREPANCY_TYPE === filter);
+    : data.filter((d) => d.DISCREPANCY_TYPE === typeFilter);
+
+  const {
+    processed, sortCol, sortDir, toggleSort,
+    filters, setFilter, clearAll, activeFilterCount,
+  } = useSortFilter(typeFiltered, 'BALANCE_VAL', 'desc');
 
   return (
     <div>
       <SectionHeader
         title="GR/IR Exceptions Detail"
-        subtitle="3-way match discrepancies — sorted by open value (highest first)"
+        subtitle={`${processed.length} of ${data.length} items${activeFilterCount ? ` (${activeFilterCount} filter${activeFilterCount > 1 ? 's' : ''} active)` : ''} — sorted by open value`}
         action={
-          <div className="flex gap-1">
-            {['ALL', 'GR_WITHOUT_IR', 'IR_WITHOUT_GR'].map((f) => (
+          <div className="flex items-center gap-2 flex-wrap">
+            {activeFilterCount > 0 && (
               <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`text-xs px-2.5 py-1 rounded font-medium transition-colors ${
-                  filter === f
-                    ? 'bg-sap-blue text-white'
-                    : 'bg-sap-gray text-sap-subtext hover:bg-sap-lightblue'
-                }`}
+                onClick={clearAll}
+                className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium"
               >
-                {f === 'ALL' ? 'All' : f === 'GR_WITHOUT_IR' ? 'GR w/o IR' : 'IR w/o GR'}
+                <X size={12} /> Clear filters
               </button>
-            ))}
+            )}
+            <div className="flex gap-1">
+              {['ALL', 'GR_WITHOUT_IR', 'IR_WITHOUT_GR'].map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setTypeFilter(f)}
+                  className={`text-xs px-2.5 py-1 rounded font-medium transition-colors ${
+                    typeFilter === f
+                      ? 'bg-sap-blue text-white'
+                      : 'bg-sap-gray text-sap-subtext hover:bg-sap-lightblue'
+                  }`}
+                >
+                  {f === 'ALL' ? 'All' : f === 'GR_WITHOUT_IR' ? 'GR w/o IR' : 'IR w/o GR'}
+                </button>
+              ))}
+            </div>
           </div>
         }
       />
 
       <div className="overflow-x-auto">
-        <table className="w-full text-xs min-w-[820px]">
+        <table className="w-full text-xs min-w-[860px]">
           <thead>
             <tr className="border-b-2 border-sap-border">
-              {[
-                'PO / Invoice #', 'Supplier', 'Material / Service',
-                'Requester', 'Qty GR', 'Qty IR',
-                'Open Balance', 'Open Value', 'Age', 'Type', 'SAP Txn',
-              ].map((h) => (
-                <th key={h} className="text-left py-2 pr-3 last:pr-0 font-semibold text-sap-subtext uppercase tracking-wide whitespace-nowrap">
-                  {h}
-                </th>
+              {COLUMNS.map(({ label, col, align, noFilter }) => (
+                <SortFilterHeader
+                  key={col}
+                  label={label}
+                  col={col}
+                  sortCol={sortCol}
+                  sortDir={sortDir}
+                  onSort={toggleSort}
+                  filter={filters[col] || ''}
+                  onFilter={setFilter}
+                  align={align}
+                  noFilter={noFilter}
+                />
               ))}
             </tr>
           </thead>
           <tbody>
-            {filtered.map((row, i) => (
+            {processed.length === 0 && (
+              <tr>
+                <td colSpan={COLUMNS.length} className="py-6 text-center text-sap-subtext text-xs">
+                  No items match the current filters.
+                </td>
+              </tr>
+            )}
+            {processed.map((row, i) => (
               <tr
-                key={`${row.EBELN}-${row.EBELP}`}
+                key={`${row.EBELN}-${row.EBELP}-${i}`}
                 className={`border-b border-sap-border transition-colors ${
                   row.DISCREPANCY_TYPE === 'GR_WITHOUT_IR'
                     ? i % 2 === 0 ? 'bg-red-50 hover:bg-red-100' : 'bg-red-50/60 hover:bg-red-100'
@@ -83,28 +126,30 @@ export default function ExceptionsTable({ data }) {
                 <td className="py-2.5 pr-3 max-w-[130px] truncate" title={row.VENDOR_NAME}>
                   {row.VENDOR_NAME}
                 </td>
-                <td className="py-2.5 pr-3 max-w-[160px]">
-                  <div className="truncate font-medium text-sap-text" title={row.TXZ01}>{row.TXZ01 !== '—' ? row.TXZ01 : ''}</div>
-                  <div className="text-sap-subtext font-mono">{row.MATNR}</div>
+                <td className="py-2.5 pr-3 max-w-[140px]">
+                  <div className="truncate font-medium text-sap-text" title={row.TXZ01}>
+                    {row.TXZ01 !== '—' ? row.TXZ01 : ''}
+                  </div>
+                  {row.MATNR !== '—' && <div className="text-sap-subtext font-mono">{row.MATNR}</div>}
                 </td>
-                <td className="py-2.5 pr-3 text-sap-text max-w-[120px] truncate" title={row.REQUESTER}>
+                <td className="py-2.5 pr-3 max-w-[120px] truncate" title={row.REQUESTER}>
                   {row.REQUESTER !== '—' ? row.REQUESTER : <span className="text-sap-subtext">—</span>}
                 </td>
                 <td className="py-2.5 pr-3 text-right font-mono text-sap-text">
-                  {row.QTY_GR.toLocaleString()}
+                  {row.QTY_GR > 0 ? row.QTY_GR.toLocaleString() : <span className="text-sap-subtext">—</span>}
                 </td>
                 <td className="py-2.5 pr-3 text-right font-mono text-sap-text">
-                  {row.QTY_IR.toLocaleString()}
+                  {row.QTY_IR > 0 ? row.QTY_IR.toLocaleString() : <span className="text-sap-subtext">—</span>}
                 </td>
                 <td className={`py-2.5 pr-3 text-right font-mono font-semibold ${
                   row.DISCREPANCY_TYPE === 'GR_WITHOUT_IR' ? 'text-red-700' : 'text-amber-700'
                 }`}>
-                  {row.BALANCE_QTY.toLocaleString()} {row.MEINS}
+                  {row.BALANCE_QTY > 0 ? `${row.BALANCE_QTY.toLocaleString()} ${row.MEINS}` : <span className="text-sap-subtext">—</span>}
                 </td>
                 <td className="py-2.5 pr-3 text-right font-semibold text-sap-text whitespace-nowrap">
                   {fmt(row.BALANCE_VAL)}
                 </td>
-                <td className="py-2.5 pr-3">
+                <td className="py-2.5 pr-3 text-right">
                   <AgeBadge days={row.DAYS_OPEN} />
                 </td>
                 <td className="py-2.5 pr-3">
@@ -121,11 +166,11 @@ export default function ExceptionsTable({ data }) {
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-sap-border bg-sap-gray">
-              <td colSpan={6} className="py-2 pr-3 text-right text-xs font-semibold text-sap-subtext uppercase tracking-wide">
-                Total Open Value
+              <td colSpan={7} className="py-2 pr-3 text-right text-xs font-semibold text-sap-subtext uppercase tracking-wide">
+                Total Open Value ({processed.length} items)
               </td>
               <td className="py-2 pr-3 text-right text-sm font-bold text-sap-text">
-                {fmt(filtered.reduce((s, d) => s + d.BALANCE_VAL, 0))}
+                {fmt(processed.reduce((s, d) => s + d.BALANCE_VAL, 0))}
               </td>
               <td colSpan={3} />
             </tr>
@@ -134,9 +179,10 @@ export default function ExceptionsTable({ data }) {
       </div>
 
       <p className="mt-3 text-xs text-sap-subtext">
-        Use <span className="font-mono bg-sap-gray px-1 rounded">MRBR</span> to release invoices blocked for
-        missing GR  •  <span className="font-mono bg-sap-gray px-1 rounded">MB5S</span> for GR/IR balance
-        report  •  <span className="font-mono bg-sap-gray px-1 rounded">MR11</span> to clear GR/IR accounts
+        Click any column header to sort  •  Click <span className="font-mono bg-sap-gray px-1 rounded">▼</span> icon to filter  •
+        <span className="font-mono bg-sap-gray px-1 rounded ml-1">MRBR</span> release blocked invoices  •
+        <span className="font-mono bg-sap-gray px-1 rounded ml-1">MB5S</span> GR/IR balance  •
+        <span className="font-mono bg-sap-gray px-1 rounded ml-1">MR11</span> clear GR/IR accounts
       </p>
     </div>
   );
