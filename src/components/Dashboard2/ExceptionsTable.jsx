@@ -54,8 +54,8 @@ export default function ExceptionsTable({ data }) {
           <thead>
             <tr className="border-b-2 border-sap-border">
               {[
-                'PO Number', 'Vendor', 'Material / Service',
-                'Qty Ordered', 'Qty GR', 'Qty IR',
+                'PO / Invoice #', 'Supplier', 'Material / Service',
+                'Requester', 'Qty GR', 'Qty IR',
                 'Open Balance', 'Open Value', 'Age', 'Type', 'SAP Txn',
               ].map((h) => (
                 <th key={h} className="text-left py-2 pr-3 last:pr-0 font-semibold text-sap-subtext uppercase tracking-wide whitespace-nowrap">
@@ -75,17 +75,20 @@ export default function ExceptionsTable({ data }) {
                 }`}
               >
                 <td className="py-2.5 pr-3 font-mono font-medium text-sap-blue whitespace-nowrap">
-                  {row.EBELN}<span className="text-sap-subtext">/{row.EBELP}</span>
+                  <div>{row.EBELN}</div>
+                  {row.INVOICE_NUM && row.INVOICE_NUM !== row.EBELN && (
+                    <div className="text-sap-subtext text-xs">{row.INVOICE_NUM}</div>
+                  )}
                 </td>
                 <td className="py-2.5 pr-3 max-w-[130px] truncate" title={row.VENDOR_NAME}>
                   {row.VENDOR_NAME}
                 </td>
                 <td className="py-2.5 pr-3 max-w-[160px]">
-                  <div className="truncate font-medium text-sap-text" title={row.TXZ01}>{row.TXZ01}</div>
+                  <div className="truncate font-medium text-sap-text" title={row.TXZ01}>{row.TXZ01 !== '—' ? row.TXZ01 : ''}</div>
                   <div className="text-sap-subtext font-mono">{row.MATNR}</div>
                 </td>
-                <td className="py-2.5 pr-3 text-right font-mono text-sap-text">
-                  {row.QTY_ORDERED.toLocaleString()} {row.MEINS}
+                <td className="py-2.5 pr-3 text-sap-text max-w-[120px] truncate" title={row.REQUESTER}>
+                  {row.REQUESTER !== '—' ? row.REQUESTER : <span className="text-sap-subtext">—</span>}
                 </td>
                 <td className="py-2.5 pr-3 text-right font-mono text-sap-text">
                   {row.QTY_GR.toLocaleString()}
@@ -118,7 +121,7 @@ export default function ExceptionsTable({ data }) {
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-sap-border bg-sap-gray">
-              <td colSpan={7} className="py-2 pr-3 text-right text-xs font-semibold text-sap-subtext uppercase tracking-wide">
+              <td colSpan={6} className="py-2 pr-3 text-right text-xs font-semibold text-sap-subtext uppercase tracking-wide">
                 Total Open Value
               </td>
               <td className="py-2 pr-3 text-right text-sm font-bold text-sap-text">
