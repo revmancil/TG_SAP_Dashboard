@@ -62,8 +62,8 @@ function agingBucket(days) {
 }
 
 export const APPROVALS_EXPECTED_COLUMNS = [
-  'BELNR', 'LIFNR', 'VENDOR_NAME', 'WRBTR', 'ZTERM',
-  'BLDAT', 'WI_STAT', 'APPROVER_ID', 'APPROVER_NAME', 'WI_CREATED_TS',
+  'Invoice #', 'Invoice Date', 'Supplier', 'Created Date',
+  'Current Approver', 'Time with Current Approver', 'Total',
 ];
 
 export function parseApprovalsCSV(rows) {
@@ -73,21 +73,40 @@ export function parseApprovalsCSV(rows) {
   rows.forEach((rawRow, i) => {
     const row = norm(rawRow);
 
-    const belnr = pick(row, 'BELNR', 'INVOICE', 'INVOICE_NO', 'INVOICE #', 'DOC_NO', 'DOCUMENT NUMBER');
-    const vendor = pick(row, 'VENDOR_NAME', 'NAME1', 'VENDOR NAME', 'VENDOR', 'LIEFERANT');
-    const lifnr  = pick(row, 'LIFNR', 'VENDOR_ID', 'VENDOR ID', 'VENDOR NO');
-    const amtStr = pick(row, 'WRBTR', 'AMOUNT', 'GROSS_AMOUNT', 'GROSS AMOUNT', 'BETRAG', 'INV_AMOUNT');
+    const belnr = pick(row,
+      'INVOICE #', 'INVOICE#', 'INVOICE NO', 'INVOICE NUMBER',
+      'BELNR', 'INVOICE', 'INVOICE_NO', 'DOC_NO', 'DOCUMENT NUMBER');
+    const vendor = pick(row,
+      'SUPPLIER', 'SUPPLIER NAME',
+      'VENDOR_NAME', 'NAME1', 'VENDOR NAME', 'VENDOR', 'LIEFERANT');
+    const lifnr  = pick(row, 'LIFNR', 'VENDOR_ID', 'VENDOR ID', 'VENDOR NO', 'SUPPLIER ID');
+    const amtStr = pick(row,
+      'TOTAL',
+      'WRBTR', 'AMOUNT', 'GROSS_AMOUNT', 'GROSS AMOUNT', 'BETRAG', 'INV_AMOUNT');
     const zterm  = pick(row, 'ZTERM', 'PAYMENT_TERMS', 'PAYMENT TERMS', 'PAY TERMS', 'ZAHLBED');
-    const bldat  = parseDate(pick(row, 'BLDAT', 'INVOICE_DATE', 'INVOICE DATE', 'BELEGDATUM', 'DOC_DATE'));
+    const bldat  = parseDate(pick(row,
+      'INVOICE DATE', 'INVOICE_DATE',
+      'BLDAT', 'BELEGDATUM', 'DOC_DATE'));
     const wiStat = pick(row, 'WI_STAT', 'STATUS', 'WI_STATUS', 'WORKFLOW_STATUS') || 'READY';
-    const wiDate = parseDate(pick(row, 'WI_CREATED_TS', 'WI_DATE', 'CREATED_DATE', 'WORKFLOW_DATE', 'CREATED_ON', 'ERDAT')) || bldat;
+    const wiDate = parseDate(pick(row,
+      'CREATED DATE', 'CREATED_DATE',
+      'WI_CREATED_TS', 'WI_DATE', 'WORKFLOW_DATE', 'CREATED_ON', 'ERDAT')) || bldat;
     const approverId   = pick(row, 'APPROVER_ID', 'ACTUAL_AGENT', 'AGENT', 'USER_ID', 'BENUTZER', 'USNAM');
-    const approverName = pick(row, 'APPROVER_NAME', 'AGENT_NAME', 'APPROVER', 'FULL_NAME', 'NAME');
+    const approverName = pick(row,
+      'CURRENT APPROVER', 'CURRENT_APPROVER',
+      'APPROVER_NAME', 'AGENT_NAME', 'APPROVER', 'FULL_NAME', 'NAME');
 
-    if (!belnr) { errors.push(`Row ${i + 2}: Missing invoice number (BELNR)`); return; }
+    // "Time with Current Approver" — use directly if present, otherwise calculate
+    const timeWithApproverRaw = pick(row,
+      'TIME WITH CURRENT APPROVER', 'TIME WITH APPROVER', 'TIME_WITH_APPROVER',
+      'DAYS_WITH_APPROVER', 'DAYS WITH APPROVER');
+    const preCalcDays = timeWithApproverRaw ? parseFloat(timeWithApproverRaw) || null : null;
 
-    const amount     = parseAmount(amtStr);
-    const daysInWF   = daysBetween(wiDate);
+    if (!belnr) { errors.push(`Row ${i + 2}: Missing invoice number (Invoice #)`); return; }
+
+    const amount   = parseAmount(amtStr);
+    // Use pre-calculated days if available, otherwise derive from created date
+    const daysInWF = preCalcDays !== null ? Math.round(preCalcDays) : daysBetween(wiDate);
     const discountDays = zterm === 'ZB01' ? 10 : zterm === 'ZB04' ? 5 : zterm === 'ZB02' ? 15 : null;
     let discDeadline = null;
     if (discountDays && bldat) {
