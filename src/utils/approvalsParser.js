@@ -50,8 +50,8 @@ function daysUntil(dateStr) {
 
 function parseAmount(str) {
   if (!str) return 0;
-  // Remove currency symbols, spaces, thousand separators
-  const cleaned = str.replace(/[^0-9.\-,]/g, '').replace(',', '.');
+  // Remove currency symbols, whitespace, and comma thousands separators (US format)
+  const cleaned = String(str).replace(/[$€£¥\s]/g, '').replace(/,/g, '');
   return parseFloat(cleaned) || 0;
 }
 
@@ -78,7 +78,8 @@ export function parseApprovalsCSV(rows) {
       'BELNR', 'INVOICE', 'INVOICE_NO', 'DOC_NO', 'DOCUMENT NUMBER');
     const vendor = pick(row,
       'SUPPLIER', 'SUPPLIER NAME',
-      'VENDOR_NAME', 'NAME1', 'VENDOR NAME', 'VENDOR', 'LIEFERANT');
+      'VENDOR_NAME', 'NAME1', 'VENDOR NAME', 'VENDOR', 'LIEFERANT')
+      .replace(/\s*\([^)]*\)\s*$/, '').trim();
     const lifnr  = pick(row, 'LIFNR', 'VENDOR_ID', 'VENDOR ID', 'VENDOR NO', 'SUPPLIER ID');
     const amtStr = pick(row,
       'TOTAL',

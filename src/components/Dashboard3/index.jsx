@@ -26,8 +26,7 @@ function ReconciliationBanner({ chartTotal, chartValue, dashTotal, dashValue, la
         <span className="font-semibold">{label} — totals differ from detail dashboard. </span>
         Chart bars total: <span className="font-semibold">{chartTotal} items / {fmtVal(chartValue)}</span>
         {' '}vs detail dashboard: <span className="font-semibold">{dashTotal} items / {fmtVal(dashValue)}</span>.
-        {' '}This is expected when the uploaded weekly analysis sheet includes historical weeks
-        (items already resolved). The detail dashboard shows only currently open items.
+        {' '}The weekly analysis sheet may include weeks with different item counts than what is currently open in the detail dashboard.
       </div>
     </div>
   );
