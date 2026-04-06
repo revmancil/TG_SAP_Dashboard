@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { X, AlertTriangle, Tag } from 'lucide-react';
 import SapBadge from '../shared/SapBadge';
 import SectionHeader from '../shared/SectionHeader';
 import SortFilterHeader from '../shared/SortFilterHeader';
+import Pagination from '../shared/Pagination';
 import { useSortFilter } from '../../hooks/useSortFilter';
 
 function fmt(n) {
@@ -31,10 +33,16 @@ const COLUMNS = [
 ];
 
 export default function ActionList({ data, selectedApprover, onClear }) {
+  const [page, setPage]         = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
   const {
     processed, sortCol, sortDir, toggleSort,
     filters, setFilter, clearAll, activeFilterCount,
   } = useSortFilter(data, 'WRBTR', 'desc');
+
+  // Reset to page 1 when filters/sort change
+  const pageData = processed.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <div>
@@ -88,14 +96,14 @@ export default function ActionList({ data, selectedApprover, onClear }) {
             </tr>
           </thead>
           <tbody>
-            {processed.length === 0 && (
+            {pageData.length === 0 && (
               <tr>
                 <td colSpan={COLUMNS.length} className="py-6 text-center text-sap-subtext text-xs">
                   No invoices match the current filters.
                 </td>
               </tr>
             )}
-            {processed.map((row, i) => (
+            {pageData.map((row, i) => (
               <tr
                 key={row.WI_ID}
                 className={`border-b border-sap-border transition-colors ${
@@ -142,10 +150,15 @@ export default function ActionList({ data, selectedApprover, onClear }) {
         </table>
       </div>
 
-      <p className="mt-3 text-xs text-sap-subtext">
-        Click any column header to sort  •  Click <span className="font-mono bg-sap-gray px-1 rounded">▼</span> icon to filter  •
-        SAP txn: <span className="font-mono bg-sap-gray px-1 rounded">FBL1N</span> vendor open items  •
-        <span className="font-mono bg-sap-gray px-1 rounded ml-1">SWI2_FREQ</span> workflow by agent
+      <Pagination
+        total={processed.length}
+        page={page}
+        pageSize={pageSize}
+        onPage={setPage}
+        onPageSize={(n) => { setPageSize(n); setPage(1); }}
+      />
+      <p className="mt-2 text-xs text-sap-subtext">
+        Click any column header to sort  •  Click <span className="font-mono bg-sap-gray px-1 rounded">▼</span> icon to filter
       </p>
     </div>
   );

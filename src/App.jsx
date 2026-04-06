@@ -1,20 +1,22 @@
 import { useState, useMemo, useEffect } from 'react';
-import { LayoutDashboard, ClipboardCheck, RefreshCw, TrendingUp, FileText } from 'lucide-react';
+import { LayoutDashboard, ClipboardCheck, FileX, PackageCheck, TrendingUp, FileText } from 'lucide-react';
 import { buildApprovalsDataset } from './data/approvals';
 import { buildReceiptsDataset } from './data/receipts';
 import { parseApprovalsCSV, APPROVALS_EXPECTED_COLUMNS } from './utils/approvalsParser';
 import { parseReceiptsCSV } from './utils/receiptsParser';
 import { parsePendingReceiptsCSV } from './utils/pendingReceiptsParser';
 import Dashboard1 from './components/Dashboard1';
-import Dashboard2 from './components/Dashboard2';
 import Dashboard3 from './components/Dashboard3';
 import Dashboard4 from './components/Dashboard4';
+import DashboardMRBR from './components/DashboardMRBR';
+import DashboardMB5S from './components/DashboardMB5S';
 
 const TABS = [
-  { id: 'approvals',         label: 'Pending Approvals',    icon: ClipboardCheck, subtitle: 'SWWUSERWI · RBKP'  },
-  { id: 'pending-receipts',  label: 'Pending Receipts',     icon: FileText,       subtitle: 'AP Invoice Report'  },
-  { id: 'receipts',          label: 'GR/IR Reconciliation', icon: RefreshCw,      subtitle: 'MRBR · MB5S'        },
-  { id: 'trends',            label: 'Weekly Trends',        icon: TrendingUp,     subtitle: 'Approvals & Receipts' },
+  { id: 'approvals',        label: 'Pending Approvals',  icon: ClipboardCheck, subtitle: 'SWWUSERWI · RBKP'    },
+  { id: 'pending-receipts', label: 'Pending Receipts',   icon: FileText,       subtitle: 'AP Invoice Report'    },
+  { id: 'mrbr',             label: 'Blocked Invoices',   icon: FileX,          subtitle: 'MRBR · IR w/o GR'    },
+  { id: 'mb5s',             label: 'GR/IR Balances',     icon: PackageCheck,   subtitle: 'MB5S · GR w/o IR'    },
+  { id: 'trends',           label: 'Weekly Trends',      icon: TrendingUp,     subtitle: 'Approvals & Receipts' },
 ];
 
 // ── localStorage helpers ──────────────────────────────────────────────────────
@@ -169,16 +171,20 @@ export default function App() {
             hasUpload={!!uploadedPendingReceipts}
           />
         )}
-        {activeTab === 'receipts' && (
-          <Dashboard2
+        {activeTab === 'mrbr' && (
+          <DashboardMRBR
             mrbrData={uploadedMRBR ?? []}
+            onUpload={handleMRBRUpload}
+            onClear={() => setUploadedMRBR(null)}
+            hasUpload={!!uploadedMRBR}
+          />
+        )}
+        {activeTab === 'mb5s' && (
+          <DashboardMB5S
             mb5sData={uploadedMB5S ?? []}
-            onUploadMRBR={handleMRBRUpload}
-            onClearMRBR={() => setUploadedMRBR(null)}
-            hasMRBR={!!uploadedMRBR}
-            onUploadMB5S={handleMB5SUpload}
-            onClearMB5S={() => setUploadedMB5S(null)}
-            hasMB5S={!!uploadedMB5S}
+            onUpload={handleMB5SUpload}
+            onClear={() => setUploadedMB5S(null)}
+            hasUpload={!!uploadedMB5S}
           />
         )}
         {activeTab === 'trends' && (

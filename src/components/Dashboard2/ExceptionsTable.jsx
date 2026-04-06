@@ -3,6 +3,7 @@ import { ExternalLink, X } from 'lucide-react';
 import SapBadge from '../shared/SapBadge';
 import SectionHeader from '../shared/SectionHeader';
 import SortFilterHeader from '../shared/SortFilterHeader';
+import Pagination from '../shared/Pagination';
 import { useSortFilter } from '../../hooks/useSortFilter';
 
 function fmt(n) {
@@ -36,6 +37,8 @@ const COLUMNS = [
 
 export default function ExceptionsTable({ data }) {
   const [typeFilter, setTypeFilter] = useState('ALL');
+  const [page, setPage]             = useState(1);
+  const [pageSize, setPageSize]     = useState(25);
 
   const typeFiltered = typeFilter === 'ALL'
     ? data
@@ -45,6 +48,8 @@ export default function ExceptionsTable({ data }) {
     processed, sortCol, sortDir, toggleSort,
     filters, setFilter, clearAll, activeFilterCount,
   } = useSortFilter(typeFiltered, 'BALANCE_VAL', 'desc');
+
+  const pageData = processed.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <div>
@@ -101,14 +106,14 @@ export default function ExceptionsTable({ data }) {
             </tr>
           </thead>
           <tbody>
-            {processed.length === 0 && (
+            {pageData.length === 0 && (
               <tr>
                 <td colSpan={COLUMNS.length} className="py-6 text-center text-sap-subtext text-xs">
                   No items match the current filters.
                 </td>
               </tr>
             )}
-            {processed.map((row, i) => (
+            {pageData.map((row, i) => (
               <tr
                 key={`${row.EBELN}-${row.EBELP}-${i}`}
                 className={`border-b border-sap-border transition-colors ${
@@ -178,11 +183,16 @@ export default function ExceptionsTable({ data }) {
         </table>
       </div>
 
-      <p className="mt-3 text-xs text-sap-subtext">
-        Click any column header to sort  •  Click <span className="font-mono bg-sap-gray px-1 rounded">▼</span> icon to filter  •
-        <span className="font-mono bg-sap-gray px-1 rounded ml-1">MRBR</span> release blocked invoices  •
-        <span className="font-mono bg-sap-gray px-1 rounded ml-1">MB5S</span> GR/IR balance  •
-        <span className="font-mono bg-sap-gray px-1 rounded ml-1">MR11</span> clear GR/IR accounts
+      <Pagination
+        total={processed.length}
+        page={page}
+        pageSize={pageSize}
+        onPage={setPage}
+        onPageSize={(n) => { setPageSize(n); setPage(1); }}
+      />
+
+      <p className="mt-2 text-xs text-sap-subtext">
+        Click any column header to sort  •  Click <span className="font-mono bg-sap-gray px-1 rounded">▼</span> icon to filter
       </p>
     </div>
   );

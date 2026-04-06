@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { FileText, X, DollarSign, Clock } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -10,6 +10,7 @@ import SectionHeader from '../../components/shared/SectionHeader';
 import KPICard from '../../components/shared/KPICard';
 import SapBadge from '../../components/shared/SapBadge';
 import { useSortFilter } from '../../hooks/useSortFilter';
+import Pagination from '../shared/Pagination';
 import { parsePendingReceiptsCSV, PENDING_RECEIPTS_EXPECTED_COLUMNS } from '../../utils/pendingReceiptsParser';
 
 function fmtCurrency(n) {
@@ -152,10 +153,15 @@ const COLUMNS = [
 ];
 
 function PendingTable({ data }) {
+  const [page, setPage]         = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
   const {
     processed, sortCol, sortDir, toggleSort,
     filters, setFilter, clearAll, activeFilterCount,
   } = useSortFilter(data, 'AMOUNT', 'desc');
+
+  const pageData = processed.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <div className="bg-white border border-sap-border rounded-lg shadow-sm p-4">
@@ -185,14 +191,14 @@ function PendingTable({ data }) {
               </tr>
             </thead>
             <tbody>
-              {processed.length === 0 && (
+              {pageData.length === 0 && (
                 <tr>
                   <td colSpan={COLUMNS.length} className="py-6 text-center text-sap-subtext text-xs">
                     No invoices match the current filters.
                   </td>
                 </tr>
               )}
-              {processed.map((row, i) => (
+              {pageData.map((row, i) => (
                 <tr key={`${row.INVOICE_NUM}-${i}`}
                   className={`border-b border-sap-border transition-colors ${i % 2 === 0 ? 'bg-white hover:bg-sap-gray' : 'bg-gray-50 hover:bg-sap-gray'}`}
                 >
@@ -211,7 +217,14 @@ function PendingTable({ data }) {
           </table>
         </div>
       </div>
-      <p className="mt-3 text-xs text-sap-subtext">
+      <Pagination
+        total={processed.length}
+        page={page}
+        pageSize={pageSize}
+        onPage={setPage}
+        onPageSize={(n) => { setPageSize(n); setPage(1); }}
+      />
+      <p className="mt-2 text-xs text-sap-subtext">
         Click any column header to sort · Click <span className="font-mono bg-sap-gray px-1 rounded">▼</span> to filter
       </p>
     </div>
