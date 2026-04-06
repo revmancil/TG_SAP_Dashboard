@@ -137,10 +137,16 @@ export function parseReceiptsCSV(rows) {
 
     // ── Dates ────────────────────────────────────────────────────────────
     // MRBR: "Posting Date"
+    // MB5S: no date in standard layout — age will be 0 unless user adds a
+    //       date column to their SAP display variant (e.g. Document Date,
+    //       Posting Date, GR Posting Date, Entry Date)
     const invoiceDate = parseDate(pick(row,
       'POSTING DATE',                                 // MRBR
+      'DOCUMENT DATE', 'DOC. DATE',                  // MB5S variant additions
+      'GR POSTING DATE', 'GR DATE',                  // MB5S GR date
+      'ENTRY DATE', 'CREATED ON',                    // MB5S entry date
       'INVOICE DATE', 'INVOICE_DATE',
-      'BLDAT', 'BUDAT', 'BELEGDATUM', 'DOC_DATE'));
+      'BLDAT', 'BUDAT', 'CPUDT', 'BELEGDATUM', 'DOC_DATE'));
     const poDate = parseDate(pick(row,
       'BEDAT', 'PO_DATE', 'PO DATE', 'ORDER_DATE'));
 

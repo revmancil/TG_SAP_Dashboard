@@ -190,6 +190,8 @@ export function buildVendorSummary(exceptions) {
         IR_WITHOUT_GR: 0,
         TOTAL_OPEN: 0,
         ITEM_COUNT: 0,
+        MAX_DAYS: 0,
+        TOTAL_DAYS: 0,
       };
     }
     const v = map[e.LIFNR];
@@ -197,6 +199,11 @@ export function buildVendorSummary(exceptions) {
     else v.IR_WITHOUT_GR += e.BALANCE_VAL;
     v.TOTAL_OPEN += e.BALANCE_VAL;
     v.ITEM_COUNT += 1;
+    v.MAX_DAYS    = Math.max(v.MAX_DAYS, e.DAYS_OPEN || 0);
+    v.TOTAL_DAYS += (e.DAYS_OPEN || 0);
   });
-  return Object.values(map).sort((a, b) => b.TOTAL_OPEN - a.TOTAL_OPEN);
+  return Object.values(map)
+    .map((v) => ({ ...v, AVG_DAYS: v.ITEM_COUNT > 0 ? Math.round(v.TOTAL_DAYS / v.ITEM_COUNT) : 0 }))
+    .sort((a, b) => b.MAX_DAYS - a.MAX_DAYS)
+    .slice(0, 25);
 }
