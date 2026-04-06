@@ -63,8 +63,9 @@ function PendingTable({ data }) {
       />
 
       <div className="overflow-x-auto">
+        <div className="max-h-[32rem] overflow-y-auto">
         <table className="w-full text-xs min-w-[900px]">
-          <thead>
+          <thead className="sticky top-0 bg-white z-10">
             <tr className="border-b-2 border-sap-border">
               {COLUMNS.map(({ label, col, align }) => (
                 <SortFilterHeader
@@ -81,7 +82,7 @@ function PendingTable({ data }) {
               ))}
             </tr>
           </thead>
-          <tbody className="block max-h-96 overflow-y-auto">
+          <tbody>
             {processed.length === 0 && (
               <tr className="table-row">
                 <td colSpan={COLUMNS.length} className="py-6 text-center text-sap-subtext text-xs">
@@ -133,6 +134,7 @@ function PendingTable({ data }) {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       <p className="mt-3 text-xs text-sap-subtext">
