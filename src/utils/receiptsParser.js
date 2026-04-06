@@ -18,7 +18,16 @@ const TODAY = new Date();
 
 function norm(obj) {
   const out = {};
-  Object.keys(obj).forEach((k) => { out[k.toUpperCase().trim()] = (obj[k] || '').toString().trim(); });
+  Object.keys(obj).forEach((k) => {
+    // Normalize key: replace non-breaking spaces, collapse whitespace, uppercase
+    const normKey = k.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').toUpperCase().trim();
+    const val = obj[k];
+    // Preserve 0 — don't coerce falsy values to '' (0 is a valid cell value)
+    const normVal = (val === null || val === undefined)
+      ? ''
+      : String(val).replace(/\u00a0/g, ' ').trim();
+    out[normKey] = normVal;
+  });
   return out;
 }
 
@@ -157,7 +166,8 @@ export function parseReceiptsCSV(rows) {
     // Need at least a Purchasing Document or Invoice Document No.
     const ref = ebeln || invoiceNum;
     if (!ref) { errors.push(`Row ${i + 2}: Missing Purchasing Document or Invoice Document No.`); return; }
-    if (balanceVal < 0.01) return; // zero-value rows skipped
+    // Use absolute value — SAP may export credits/adjustments as negative amounts
+    const absVal = Math.abs(balanceVal);
 
     // ── Discrepancy type ─────────────────────────────────────────────────
     // MB5S: derive from Quantity Received vs Invoice Quantity
@@ -192,7 +202,7 @@ export function parseReceiptsCSV(rows) {
       QTY_GR:              qtyGR,
       QTY_IR:              qtyIR,
       BALANCE_QTY:         Math.abs(qtyGR - qtyIR),
-      BALANCE_VAL:         balanceVal,
+      BALANCE_VAL:         absVal,
       WAERS:               pick(row, 'CURRENCY', 'WAERS', 'CURR') || 'USD',
       DISCREPANCY_TYPE:    discType,
       FIRST_MOVEMENT_DATE: ageDate,

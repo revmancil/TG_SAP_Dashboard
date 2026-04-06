@@ -12,9 +12,15 @@
 const TODAY = new Date();
 
 function norm(obj) {
-  // Return a version of the row with all keys uppercased + trimmed
   const out = {};
-  Object.keys(obj).forEach((k) => { out[k.toUpperCase().trim()] = (obj[k] || '').trim(); });
+  Object.keys(obj).forEach((k) => {
+    const normKey = k.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').toUpperCase().trim();
+    const val = obj[k];
+    const normVal = (val === null || val === undefined)
+      ? ''
+      : String(val).replace(/\u00a0/g, ' ').trim();
+    out[normKey] = normVal;
+  });
   return out;
 }
 
