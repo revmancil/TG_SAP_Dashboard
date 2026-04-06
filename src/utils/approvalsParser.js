@@ -136,7 +136,7 @@ export function parseApprovalsCSV(rows) {
       BLDAT:          bldat,
       WI_STAT:        wiStat.toUpperCase().replace(' ', '_'),
       WI_CREATED_TS:  wiDate,
-      APPROVER_ID:    approverId || 'UNKNOWN',
+      APPROVER_ID:    approverId || approverName || 'UNKNOWN',
       APPROVER_NAME:  approverName || approverId || 'Unknown',
       APPROVER_DEPT:  pick(row, 'DEPT', 'DEPARTMENT', 'KOSTL', 'COST_CENTER') || '—',
       DAYS_IN_WORKFLOW: daysInWF,
