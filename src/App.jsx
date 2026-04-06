@@ -171,7 +171,8 @@ export default function App() {
         )}
         {activeTab === 'receipts' && (
           <Dashboard2
-            receiptsData={receiptsData}
+            mrbrData={uploadedMRBR ?? []}
+            mb5sData={uploadedMB5S ?? []}
             onUploadMRBR={handleMRBRUpload}
             onClearMRBR={() => setUploadedMRBR(null)}
             hasMRBR={!!uploadedMRBR}
