@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { LayoutDashboard, ClipboardCheck, RefreshCw, TrendingUp } from 'lucide-react';
 import { buildApprovalsDataset } from './data/approvals';
 import { buildReceiptsDataset } from './data/receipts';
@@ -14,12 +14,41 @@ const TABS = [
   { id: 'trends',    label: 'Weekly Trends',          icon: TrendingUp,     subtitle: 'Approvals & Receipts'      },
 ];
 
+const LS_APPROVALS = 'sap_ap_approvals_v1';
+const LS_RECEIPTS  = 'sap_ap_receipts_v1';
+
+function lsLoad(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+function lsSave(key, data) {
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch { /* storage full — fail silently */ }
+}
+function lsClear(key) {
+  try { localStorage.removeItem(key); } catch { /* ignore */ }
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('approvals');
 
   // ── Uploaded data (lifted here so Dashboard3 can access both) ───────────
-  const [uploadedApprovals, setUploadedApprovals] = useState(null);
-  const [uploadedReceipts,  setUploadedReceipts]  = useState(null);
+  // Initialise from localStorage so data survives page refresh / tab close
+  const [uploadedApprovals, setUploadedApprovals] = useState(() => lsLoad(LS_APPROVALS));
+  const [uploadedReceipts,  setUploadedReceipts]  = useState(() => lsLoad(LS_RECEIPTS));
+
+  // Persist to localStorage whenever data changes
+  useEffect(() => {
+    if (uploadedApprovals) lsSave(LS_APPROVALS, uploadedApprovals);
+    else lsClear(LS_APPROVALS);
+  }, [uploadedApprovals]);
+  useEffect(() => {
+    if (uploadedReceipts) lsSave(LS_RECEIPTS, uploadedReceipts);
+    else lsClear(LS_RECEIPTS);
+  }, [uploadedReceipts]);
 
   const sampleApprovals = useMemo(() => buildApprovalsDataset(), []);
   const sampleReceipts  = useMemo(() => buildReceiptsDataset(),  []);

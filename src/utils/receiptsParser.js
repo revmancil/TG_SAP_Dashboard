@@ -109,16 +109,21 @@ export function parseReceiptsCSV(rows) {
     const ebelp = pick(row, 'ITEM', 'EBELP', 'PO_ITEM', 'PO ITEM', 'POSITION') || '00010';
 
     // ── Vendor ───────────────────────────────────────────────────────────
-    // MB5S: "Supplier" (vendor ID)  |  MRBR: "Invoicing Party" (ID) + "Name" (name)
+    // MRBR: "Invoicing Party" = vendor ID, "Name" = vendor name
+    // MB5S: "Supplier" = vendor ID (no separate name column in standard layout)
     const lifnr = pick(row,
       'INVOICING PARTY',                              // MRBR vendor ID
       'SUPPLIER',                                     // MB5S vendor ID
       'LIFNR', 'VENDOR_ID', 'VENDOR ID', 'VENDOR NO', 'SUPPLIER ID');
-    const vendor = pick(row,
+    const vendorName = pick(row,
       'NAME',                                         // MRBR vendor name
       'SUPPLIER NAME', 'SUPPLIER_NAME',               // custom report
       'VENDOR_NAME', 'NAME1', 'VENDOR NAME', 'VENDOR', 'LIEFERANT')
       .replace(/\s*\([^)]*\)\s*$/, '').trim();
+    // Display as "Vendor Name (InvoicingParty)" when both are available
+    const vendor = vendorName && lifnr
+      ? `${vendorName} (${lifnr})`
+      : (vendorName || lifnr || 'Unknown Supplier');
 
     // ── Amounts ──────────────────────────────────────────────────────────
     // MB5S: "Invoice amount LC"  |  MRBR: "Amount"
