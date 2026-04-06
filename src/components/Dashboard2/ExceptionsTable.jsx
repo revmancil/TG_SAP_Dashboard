@@ -21,7 +21,7 @@ function AgeBadge({ days }) {
 }
 
 const COLUMNS = [
-  { label: 'PO / Invoice #',   col: 'EBELN',            align: 'left'  },
+  { label: 'Purchasing Document', col: 'EBELN',          align: 'left'  },
   { label: 'Supplier',         col: 'VENDOR_NAME',      align: 'left'  },
   { label: 'Material / Svc',   col: 'TXZ01',            align: 'left'  },
   { label: 'Requester',        col: 'REQUESTER',        align: 'left'  },

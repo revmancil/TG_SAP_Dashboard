@@ -20,7 +20,7 @@ function StatusChip({ status }) {
 }
 
 const COLUMNS = [
-  { label: 'Invoice #',        col: 'BELNR',            align: 'left'  },
+  { label: 'Reference Number', col: 'BELNR',            align: 'left'  },
   { label: 'Supplier',         col: 'VENDOR_NAME',      align: 'left'  },
   { label: 'Amount',           col: 'WRBTR',            align: 'right' },
   { label: 'Payment Terms',    col: 'ZTERM_DESC',       align: 'left'  },
