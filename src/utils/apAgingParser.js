@@ -96,15 +96,8 @@ export function parseAPAgingCSV(rows) {
     const amtAbove120    = parseAmt(pick(row, 'AMOUNT_LC ABOVE 120', 'AMOUNT_LC_ABOVE_120', 'ABOVE 120', '120+'));
     const totalDue       = parseAmt(pick(row, 'AMOUNT_LC_TOTAL_DUE', 'AMOUNT_LC TOTAL DUE', 'TOTAL DUE'));
 
-    if (!docNumber && !vendorKey && !vendorName) {
-      errors.push(`Row ${i + 2}: Missing vendor and document number — skipped`);
-      return;
-    }
-
-    // Skip pure zero rows (subtotals / blank separators)
-    const anyAmt = Math.abs(totalBalance) + Math.abs(amtNotDue) + Math.abs(amt1_30) +
-                   Math.abs(amt31_60) + Math.abs(amt61_90) + Math.abs(amt91_120) + Math.abs(amtAbove120);
-    if (anyAmt < 0.01 && !docNumber) return;
+    // Skip any row without a document number — these are header, subtotal, and SUM rows
+    if (!docNumber) return;
 
     parsed.push({
       COMPANY_CODE:   companyCode || '—',
