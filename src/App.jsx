@@ -86,8 +86,14 @@ export default function App() {
     if (data.length) setUploadedApprovals(data);
   }
   function handleMRBRUpload(rows) {
-    const { data } = parseReceiptsCSV(rows);
-    if (data.length) setUploadedMRBR(data);
+    const { data: newData } = parseReceiptsCSV(rows);
+    if (!newData.length) return;
+    setUploadedMRBR((prev) => {
+      if (!prev?.length) return newData;
+      const existingKeys = new Set(prev.map((r) => `${r.EBELN}-${r.EBELP}`));
+      const toAdd = newData.filter((r) => !existingKeys.has(`${r.EBELN}-${r.EBELP}`));
+      return toAdd.length ? [...prev, ...toAdd] : prev;
+    });
   }
   function handleMB5SUpload(rows) {
     const { data } = parseReceiptsCSV(rows);

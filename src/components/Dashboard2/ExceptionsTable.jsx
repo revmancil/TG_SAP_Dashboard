@@ -40,9 +40,10 @@ const COLUMNS = [
 const LS_RESOLVED_KEY = 'mrbr_resolved';
 
 export default function ExceptionsTable({ data }) {
-  const [typeFilter, setTypeFilter] = useState('ALL');
-  const [page, setPage]             = useState(1);
-  const [pageSize, setPageSize]     = useState(25);
+  const [typeFilter, setTypeFilter]   = useState('ALL');
+  const [hideResolved, setHideResolved] = useState(false);
+  const [page, setPage]               = useState(1);
+  const [pageSize, setPageSize]       = useState(25);
 
   const [resolved, setResolved] = useState(() => {
     try {
@@ -65,9 +66,9 @@ export default function ExceptionsTable({ data }) {
     });
   }, []);
 
-  const typeFiltered = typeFilter === 'ALL'
-    ? data
-    : data.filter((d) => d.DISCREPANCY_TYPE === typeFilter);
+  const typeFiltered = data
+    .filter((d) => typeFilter === 'ALL' || d.DISCREPANCY_TYPE === typeFilter)
+    .filter((d) => !hideResolved || !resolved.has(`${d.EBELN}-${d.EBELP}`));
 
   const {
     processed, sortCol, sortDir, toggleSort,
@@ -97,6 +98,18 @@ export default function ExceptionsTable({ data }) {
               filename="gr_ir_exceptions"
               columns={COLUMNS.filter(c => c.col !== 'SAP_TRANSACTION').map(({ label, col }) => ({ key: col, label }))}
             />
+            {resolvedCount > 0 && (
+              <button
+                onClick={() => setHideResolved((v) => !v)}
+                className={`text-xs px-2.5 py-1 rounded font-medium transition-colors border ${
+                  hideResolved
+                    ? 'bg-green-600 text-white border-green-600'
+                    : 'bg-white text-green-700 border-green-400 hover:bg-green-50'
+                }`}
+              >
+                {hideResolved ? `Show resolved (${resolvedCount})` : `Hide resolved (${resolvedCount})`}
+              </button>
+            )}
             <div className="flex gap-1">
               {['ALL', 'GR_WITHOUT_IR', 'IR_WITHOUT_GR'].map((f) => (
                 <button
