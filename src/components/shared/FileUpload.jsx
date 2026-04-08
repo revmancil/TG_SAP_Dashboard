@@ -37,7 +37,35 @@ export default function FileUpload({ label, expectedColumns, onData, onClear, ha
 
   function loadSheet(wb, sheetName) {
     const ws   = wb.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+    let rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+
+    if (!rows.length) {
+      setStatus({ type: 'error', message: `Sheet "${sheetName}" is empty.` });
+      return;
+    }
+
+    // SAP often puts report title / date rows above the real headers, causing
+    // SheetJS to produce __EMPTY column names.  When that happens, re-read as a
+    // raw 2-D array and find the first row that looks like a header (≥3 filled cells).
+    const firstKeys = Object.keys(rows[0]);
+    const allEmpty  = firstKeys.every((k) => k === '__EMPTY' || /^__EMPTY_\d+$/.test(k));
+    if (allEmpty) {
+      const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+      let headerIdx = -1;
+      for (let i = 0; i < rawRows.length; i++) {
+        const filled = rawRows[i].filter((v) => v && String(v).trim());
+        if (filled.length >= 3) { headerIdx = i; break; }
+      }
+      if (headerIdx >= 0) {
+        const headers = rawRows[headerIdx];
+        rows = rawRows.slice(headerIdx + 1).map((rowArr) => {
+          const obj = {};
+          headers.forEach((h, j) => { obj[h || `_COL_${j}`] = rowArr[j] ?? ''; });
+          return obj;
+        });
+      }
+    }
+
     if (!rows.length) {
       setStatus({ type: 'error', message: `Sheet "${sheetName}" is empty.` });
       return;
