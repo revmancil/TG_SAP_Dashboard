@@ -90,8 +90,8 @@ export default function App() {
     if (!newData.length) return;
     setUploadedMRBR((prev) => {
       if (!prev?.length) return newData;
-      const existingKeys = new Set(prev.map((r) => `${r.EBELN}-${r.EBELP}`));
-      const toAdd = newData.filter((r) => !existingKeys.has(`${r.EBELN}-${r.EBELP}`));
+      const existingKeys = new Set(prev.map((r) => `${r.EBELN}|${r.INVOICE_NUM}|${r.BALANCE_VAL}`));
+      const toAdd = newData.filter((r) => !existingKeys.has(`${r.EBELN}|${r.INVOICE_NUM}|${r.BALANCE_VAL}`));
       return toAdd.length ? [...prev, ...toAdd] : prev;
     });
   }

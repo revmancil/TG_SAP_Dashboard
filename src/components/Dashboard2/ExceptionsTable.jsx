@@ -37,7 +37,12 @@ const COLUMNS = [
   { label: 'SAP Txn',             col: 'SAP_TRANSACTION', align: 'left', noFilter: true },
 ];
 
-const LS_RESOLVED_KEY = 'mrbr_resolved';
+const LS_RESOLVED_KEY = 'mrbr_resolved_v2';
+
+// Unique key per blocked invoice — EBELN+EBELP alone collides when EBELP defaults to '00010'
+function rowKey(r) {
+  return `${r.EBELN}|${r.INVOICE_NUM}|${r.BALANCE_VAL}`;
+}
 
 export default function ExceptionsTable({ data }) {
   const [typeFilter, setTypeFilter]   = useState('ALL');
@@ -68,7 +73,7 @@ export default function ExceptionsTable({ data }) {
 
   const typeFiltered = data
     .filter((d) => typeFilter === 'ALL' || d.DISCREPANCY_TYPE === typeFilter)
-    .filter((d) => !hideResolved || !resolved.has(`${d.EBELN}-${d.EBELP}`));
+    .filter((d) => !hideResolved || !resolved.has(rowKey(d)));
 
   const {
     processed, sortCol, sortDir, toggleSort,
@@ -76,7 +81,7 @@ export default function ExceptionsTable({ data }) {
   } = useSortFilter(typeFiltered, 'BALANCE_VAL', 'desc');
 
   const pageData = processed.slice((page - 1) * pageSize, page * pageSize);
-  const resolvedCount = data.filter((r) => resolved.has(`${r.EBELN}-${r.EBELP}`)).length;
+  const resolvedCount = data.filter((r) => resolved.has(rowKey(r))).length;
 
   return (
     <div>
@@ -161,11 +166,11 @@ export default function ExceptionsTable({ data }) {
               </tr>
             )}
             {pageData.map((row, i) => {
-              const rowKey = `${row.EBELN}-${row.EBELP}`;
-              const isResolved = resolved.has(rowKey);
+              const rk = rowKey(row);
+              const isResolved = resolved.has(rk);
               return (
               <tr
-                key={`${rowKey}-${i}`}
+                key={`${rk}-${i}`}
                 className={`border-b border-sap-border transition-colors ${
                   isResolved
                     ? 'bg-green-50 opacity-60'
@@ -178,7 +183,7 @@ export default function ExceptionsTable({ data }) {
                   <input
                     type="checkbox"
                     checked={isResolved}
-                    onChange={() => toggleResolved(rowKey)}
+                    onChange={() => toggleResolved(rk)}
                     className="w-4 h-4 rounded border-sap-border cursor-pointer accent-green-600"
                     title={isResolved ? 'Mark as unresolved' : 'Mark as resolved'}
                   />
