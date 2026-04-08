@@ -54,8 +54,11 @@ export default function FileUpload({ label, expectedColumns, onData, onClear, ha
       const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
       let headerIdx = -1;
       for (let i = 0; i < rawRows.length; i++) {
-        const filled = rawRows[i].filter((v) => v && String(v).trim());
-        if (filled.length >= 3) { headerIdx = i; break; }
+        const filled     = rawRows[i].filter((v) => v && String(v).trim());
+        const uniqueVals = new Set(filled.map((v) => String(v).trim()));
+        // Require ≥2 filled cells AND ≥2 distinct values (skips merged title rows
+        // like "Pending Report Analysis | Pending Report Analysis | ...")
+        if (filled.length >= 2 && uniqueVals.size >= 2) { headerIdx = i; break; }
       }
       if (headerIdx >= 0) {
         const headers = rawRows[headerIdx];

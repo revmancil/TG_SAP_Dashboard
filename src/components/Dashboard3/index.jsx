@@ -46,8 +46,12 @@ function parseWeeklyRows(rows) {
     for (let i = 0; i < Math.min(rows.length, 15); i++) {
       const vals = Object.values(rows[i]).map((v) => String(v || '').trim());
       const upper = vals.map((v) => v.toUpperCase());
-      // Header row: at least one cell == 'DATE' and at least one contains 'LINE'
-      if (upper.some((v) => v === 'DATE') && upper.some((v) => v.includes('LINE'))) {
+      // Header row: ≥2 distinct non-empty cells, and one looks like a date column label
+      const distinct = new Set(vals.filter(v => v));
+      const looksLikeHeader = distinct.size >= 2 &&
+        (upper.some((v) => v === 'DATE' || v === 'WEEK' || v.includes('DATE') || v.includes('WEEK')) ||
+         upper.some((v) => v.includes('LINE') || v.includes('COUNT')));
+      if (looksLikeHeader) {
         // Rebuild subsequent rows using these header values
         workRows = rows.slice(i + 1).map((dataRow) => {
           const dataVals = Object.values(dataRow);
