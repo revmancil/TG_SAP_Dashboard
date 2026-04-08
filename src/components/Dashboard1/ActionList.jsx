@@ -4,6 +4,7 @@ import SapBadge from '../shared/SapBadge';
 import SectionHeader from '../shared/SectionHeader';
 import SortFilterHeader from '../shared/SortFilterHeader';
 import Pagination from '../shared/Pagination';
+import ExportButtons from '../shared/ExportButtons';
 import { useSortFilter } from '../../hooks/useSortFilter';
 
 function fmt(n) {
@@ -54,7 +55,7 @@ export default function ActionList({ data, selectedApprover, onClear }) {
             : `${processed.length} of ${data.length} item${data.length !== 1 ? 's' : ''} ${activeFilterCount ? `(${activeFilterCount} filter${activeFilterCount > 1 ? 's' : ''} active)` : ''}`
         }
         action={
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {activeFilterCount > 0 && (
               <button
                 onClick={clearAll}
@@ -63,6 +64,11 @@ export default function ActionList({ data, selectedApprover, onClear }) {
                 <X size={12} /> Clear filters
               </button>
             )}
+            <ExportButtons
+              data={processed}
+              filename="pending_approvals_detail"
+              columns={COLUMNS.filter(c => c.col !== 'DAYS_TO_DISCOUNT').map(({ label, col }) => ({ key: col, label }))}
+            />
             {selectedApprover && (
               <button
                 onClick={onClear}

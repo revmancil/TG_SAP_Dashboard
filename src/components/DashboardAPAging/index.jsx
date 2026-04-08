@@ -10,6 +10,7 @@ import SectionHeader from '../shared/SectionHeader';
 import SortFilterHeader from '../shared/SortFilterHeader';
 import SapBadge from '../shared/SapBadge';
 import Pagination from '../shared/Pagination';
+import ExportButtons from '../shared/ExportButtons';
 import { useSortFilter } from '../../hooks/useSortFilter';
 import {
   parseAPAgingCSV,
@@ -181,11 +182,18 @@ function DetailTable({ data }) {
         title="AP Aging Detail"
         subtitle={`${processed.length} of ${data.length} document${data.length !== 1 ? 's' : ''}${activeFilterCount ? ` · ${activeFilterCount} filter${activeFilterCount > 1 ? 's' : ''} active` : ''}`}
         action={
-          activeFilterCount > 0 && (
-            <button onClick={clearAll} className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium">
-              <X size={12} /> Clear filters
-            </button>
-          )
+          <div className="flex items-center gap-2">
+            {activeFilterCount > 0 && (
+              <button onClick={clearAll} className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium">
+                <X size={12} /> Clear filters
+              </button>
+            )}
+            <ExportButtons
+              data={processed}
+              filename="ap_aging_detail"
+              columns={COLUMNS.map(({ label, col }) => ({ key: col, label }))}
+            />
+          </div>
         }
       />
       <div className="overflow-x-auto">

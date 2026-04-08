@@ -4,6 +4,7 @@ import SapBadge from '../shared/SapBadge';
 import SectionHeader from '../shared/SectionHeader';
 import SortFilterHeader from '../shared/SortFilterHeader';
 import Pagination from '../shared/Pagination';
+import ExportButtons from '../shared/ExportButtons';
 import { useSortFilter } from '../../hooks/useSortFilter';
 
 function fmt(n) {
@@ -66,6 +67,11 @@ export default function ExceptionsTable({ data }) {
                 <X size={12} /> Clear filters
               </button>
             )}
+            <ExportButtons
+              data={processed}
+              filename="gr_ir_exceptions"
+              columns={COLUMNS.filter(c => c.col !== 'SAP_TRANSACTION').map(({ label, col }) => ({ key: col, label }))}
+            />
             <div className="flex gap-1">
               {['ALL', 'GR_WITHOUT_IR', 'IR_WITHOUT_GR'].map((f) => (
                 <button
