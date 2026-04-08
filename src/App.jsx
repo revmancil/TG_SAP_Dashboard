@@ -5,6 +5,7 @@ import { buildReceiptsDataset } from './data/receipts';
 import { parseApprovalsCSV, APPROVALS_EXPECTED_COLUMNS } from './utils/approvalsParser';
 import { parseReceiptsCSV } from './utils/receiptsParser';
 import { parsePendingReceiptsCSV } from './utils/pendingReceiptsParser';
+import { idbSave, idbLoad, idbDelete } from './utils/idbStorage';
 import Dashboard1 from './components/Dashboard1';
 import Dashboard3 from './components/Dashboard3';
 import Dashboard4 from './components/Dashboard4';
@@ -26,7 +27,8 @@ const LS_APPROVALS        = 'sap_ap_approvals_v1';
 const LS_MRBR             = 'sap_ap_mrbr_v1';
 const LS_MB5S             = 'sap_ap_mb5s_v1';
 const LS_PENDING_RECEIPTS = 'sap_ap_pending_receipts_v1';
-const LS_AP_AGING         = 'sap_ap_ap_aging_v1';
+// AP Aging uses IndexedDB (too large for localStorage 5 MB limit)
+const IDB_AP_AGING        = 'ap_aging';
 
 function lsLoad(key) {
   try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : null; }
@@ -48,14 +50,20 @@ export default function App() {
   const [uploadedMRBR,            setUploadedMRBR]            = useState(() => lsLoad(LS_MRBR));
   const [uploadedMB5S,            setUploadedMB5S]            = useState(() => lsLoad(LS_MB5S));
   const [uploadedPendingReceipts, setUploadedPendingReceipts] = useState(() => lsLoad(LS_PENDING_RECEIPTS));
-  const [uploadedAPAging,         setUploadedAPAging]         = useState(() => lsLoad(LS_AP_AGING));
+  // AP Aging loaded async from IndexedDB on mount (too large for localStorage)
+  const [uploadedAPAging, setUploadedAPAging] = useState(null);
+  useEffect(() => { idbLoad(IDB_AP_AGING).then((d) => { if (d?.length) setUploadedAPAging(d); }); }, []);
 
   // Persist to localStorage on every change
   useEffect(() => { uploadedApprovals       ? lsSave(LS_APPROVALS,        uploadedApprovals)       : lsClear(LS_APPROVALS);       }, [uploadedApprovals]);
   useEffect(() => { uploadedMRBR            ? lsSave(LS_MRBR,             uploadedMRBR)            : lsClear(LS_MRBR);            }, [uploadedMRBR]);
   useEffect(() => { uploadedMB5S            ? lsSave(LS_MB5S,             uploadedMB5S)            : lsClear(LS_MB5S);            }, [uploadedMB5S]);
   useEffect(() => { uploadedPendingReceipts ? lsSave(LS_PENDING_RECEIPTS, uploadedPendingReceipts) : lsClear(LS_PENDING_RECEIPTS); }, [uploadedPendingReceipts]);
-  useEffect(() => { uploadedAPAging         ? lsSave(LS_AP_AGING,         uploadedAPAging)         : lsClear(LS_AP_AGING);         }, [uploadedAPAging]);
+  // AP Aging — persist to IndexedDB
+  useEffect(() => {
+    if (uploadedAPAging?.length) idbSave(IDB_AP_AGING, uploadedAPAging);
+    else if (uploadedAPAging === null) idbDelete(IDB_AP_AGING);
+  }, [uploadedAPAging]);
 
   // ── Sample / fallback data ───────────────────────────────────────────────
   const sampleApprovals = useMemo(() => buildApprovalsDataset(), []);
