@@ -5,7 +5,6 @@ import { buildReceiptsDataset } from './data/receipts';
 import { parseApprovalsCSV, APPROVALS_EXPECTED_COLUMNS } from './utils/approvalsParser';
 import { parseReceiptsCSV } from './utils/receiptsParser';
 import { parsePendingReceiptsCSV } from './utils/pendingReceiptsParser';
-import { parseAPAgingCSV } from './utils/apAgingParser';
 import Dashboard1 from './components/Dashboard1';
 import Dashboard3 from './components/Dashboard3';
 import Dashboard4 from './components/Dashboard4';
@@ -89,9 +88,9 @@ export default function App() {
     // Dashboard4 already parses and passes data directly
     if (data && data.length) setUploadedPendingReceipts(data);
   }
-  function handleAPAgingUpload(rows) {
-    const { data } = parseAPAgingCSV(rows);
-    if (data.length) setUploadedAPAging(data);
+  function handleAPAgingUpload(data) {
+    // DashboardAPAging already parses via parseAPAgingCSV internally
+    if (data?.length) setUploadedAPAging(data);
   }
 
   const now = new Date().toLocaleString('en-US', {
