@@ -67,10 +67,29 @@ function parseWeeklyRows(rows) {
   const out = [];
   workRows.forEach((rawRow) => {
     const row    = norm(rawRow);
-    const date   = pick(row, 'DATE', 'WEEK', 'WEEK ENDING', 'WEEK OF', 'PERIOD');
-    const lines  = parseInt(pick(row, '# OF LINES', '# LINES', 'LINES', 'COUNT', '# INVOICES', 'NUMBER OF LINES', 'NUM LINES'), 10);
-    const amount = parseAmt(pick(row, '$AMOUNT', 'AMOUNT', '$VALUE', 'VALUE', 'TOTAL AMOUNT', 'DOLLAR AMOUNT'));
+    const date   = pick(row, 'DATE', 'WEEK', 'WEEK ENDING', 'WEEK OF', 'PERIOD', 'WEEK DATE');
+    let   lines  = parseInt(pick(row,
+      '# OF LINES', '# LINES', 'LINES', 'COUNT', '# INVOICES', 'NUMBER OF LINES',
+      'NUM LINES', 'NO. OF LINES', 'NO OF LINES', 'NO. LINES', 'INVOICES',
+      'INVOICE COUNT', '# OF INVOICES', 'TOTAL LINES', 'LINE COUNT'), 10);
+    const amount = parseAmt(pick(row, '$AMOUNT', 'AMOUNT', '$VALUE', 'VALUE',
+      'TOTAL AMOUNT', 'DOLLAR AMOUNT', 'TOTAL $', 'TOTAL', '$ AMOUNT'));
+
     if (!date || (isNaN(lines) && !amount)) return;
+
+    // Position-based fallback: if key lookup missed, scan raw values for a
+    // plausible integer count (positive integer < 100,000, no decimal part).
+    if ((isNaN(lines) || lines === 0) && amount) {
+      const rawVals = Object.values(rawRow).map(v => String(v || '').trim());
+      for (const v of rawVals) {
+        const n = parseFloat(v.replace(/[,$]/g, ''));
+        if (!isNaN(n) && n > 0 && n < 100000 && Number.isInteger(n)) {
+          lines = n;
+          break;
+        }
+      }
+    }
+
     let label = date;
     const d = new Date(date);
     if (!isNaN(d)) label = `${d.getMonth() + 1}/${d.getDate()}`;
