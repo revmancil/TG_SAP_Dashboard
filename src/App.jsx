@@ -204,12 +204,7 @@ export default function App() {
             hasUpload={!!uploadedAPAging}
           />
         )}
-        {activeTab === 'trends' && (
-          <Dashboard3
-            approvalsData={approvalsData}
-            receiptsData={receiptsData}
-          />
-        )}
+        {activeTab === 'trends' && <Dashboard3 />}
       </main>
 
       <footer className="max-w-screen-xl mx-auto px-4 sm:px-6 py-4 mt-2">
