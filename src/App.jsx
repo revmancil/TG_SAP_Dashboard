@@ -120,7 +120,7 @@ export default function App() {
                 SAP S/4HANA — Accounts Payable Dashboard
               </h1>
               <p className="text-xs text-blue-300 leading-tight">
-                Accounts Payable Manager View
+                Accounts Payable Manager View · Topgolf Entertainment
               </p>
             </div>
           </div>
@@ -217,7 +217,7 @@ export default function App() {
 
       <footer className="max-w-screen-xl mx-auto px-4 sm:px-6 py-4 mt-2">
         <p className="text-xs text-sap-subtext text-center">
-          Data sourced from SAP S/4HANA · For production use, connect via SAP OData APIs or BW extractors
+          Data sourced from SAP S/4HANA · Topgolf Entertainment · For production use, connect via SAP OData APIs or BW extractors
         </p>
       </footer>
     </div>
