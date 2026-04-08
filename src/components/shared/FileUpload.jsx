@@ -45,11 +45,12 @@ export default function FileUpload({ label, expectedColumns, onData, onClear, ha
     }
 
     // SAP often puts report title / date rows above the real headers, causing
-    // SheetJS to produce __EMPTY column names.  When that happens, re-read as a
-    // raw 2-D array and find the first row that looks like a header (≥3 filled cells).
-    const firstKeys = Object.keys(rows[0]);
-    const allEmpty  = firstKeys.every((k) => k === '__EMPTY' || /^__EMPTY_\d+$/.test(k));
-    if (allEmpty) {
+    // SheetJS to produce __EMPTY column names.  Trigger the fix when ALL or all
+    // but one key is __EMPTY (e.g. first cell = "Pending Report Analysis", rest empty).
+    const firstKeys  = Object.keys(rows[0]);
+    const emptyCount = firstKeys.filter((k) => k === '__EMPTY' || /^__EMPTY_\d+$/.test(k)).length;
+    const needsFix   = emptyCount >= firstKeys.length - 1; // all or all-but-one are __EMPTY
+    if (needsFix) {
       const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
       let headerIdx = -1;
       for (let i = 0; i < rawRows.length; i++) {
