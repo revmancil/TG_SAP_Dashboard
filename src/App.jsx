@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { LayoutDashboard, ClipboardCheck, FileX, PackageCheck, TrendingUp, FileText, BarChart2 } from 'lucide-react';
+import { ClipboardCheck, FileX, PackageCheck, TrendingUp, FileText, BarChart2 } from 'lucide-react';
+import topgolfLogo from './assets/topgolf-logo.png';
 import { buildApprovalsDataset } from './data/approvals';
 import { buildReceiptsDataset } from './data/receipts';
 import { parseApprovalsCSV, APPROVALS_EXPECTED_COLUMNS } from './utils/approvalsParser';
@@ -114,7 +115,7 @@ export default function App() {
       <header className="bg-sap-darkblue text-white shadow-md">
         <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <LayoutDashboard size={22} className="text-blue-300 flex-shrink-0" />
+            <img src={topgolfLogo} alt="Topgolf" className="h-10 w-auto flex-shrink-0 brightness-0 invert" />
             <div>
               <h1 className="text-sm font-bold tracking-wide leading-tight">
                 SAP S/4HANA — Accounts Payable Dashboard
