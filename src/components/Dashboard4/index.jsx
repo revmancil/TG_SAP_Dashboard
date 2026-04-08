@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { FileText, X, DollarSign, Clock } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -140,22 +140,51 @@ function TopSuppliers({ data }) {
   );
 }
 
-// ── Detail table columns (AP Comments + Follow Up removed) ───────────────────
+// ── Detail table columns ──────────────────────────────────────────────────────
 const COLUMNS = [
-  { label: 'Invoice Number', col: 'INVOICE_NUM',  align: 'left'  },
-  { label: 'Venue Name',     col: 'VENUE_NAME',   align: 'left'  },
-  { label: 'Supplier Name',  col: 'VENDOR_NAME',  align: 'left'  },
-  { label: 'Invoice Date',   col: 'INVOICE_DATE', align: 'left'  },
-  { label: 'Requester',      col: 'REQUESTER',    align: 'left'  },
-  { label: 'PO Number',      col: 'PO_NUMBER',    align: 'left'  },
-  { label: 'Invoice Total',  col: 'AMOUNT',       align: 'right' },
-  { label: 'Invoice Year',   col: 'INVOICE_YEAR', align: 'left'  },
-  { label: 'Age (days)',     col: 'DAYS_OPEN',    align: 'right' },
+  { label: 'Invoice Number',     col: 'INVOICE_NUM',     align: 'left'  },
+  { label: 'Invoice Document No.', col: 'INVOICE_DOC_NUM', align: 'left' },
+  { label: 'Venue Name',         col: 'VENUE_NAME',      align: 'left'  },
+  { label: 'Supplier Name',      col: 'VENDOR_NAME',     align: 'left'  },
+  { label: 'Invoice Date',       col: 'INVOICE_DATE',    align: 'left'  },
+  { label: 'Requester',          col: 'REQUESTER',       align: 'left'  },
+  { label: 'PO Number',          col: 'PO_NUMBER',       align: 'left'  },
+  { label: 'Invoice Total',      col: 'AMOUNT',          align: 'right' },
+  { label: 'Invoice Year',       col: 'INVOICE_YEAR',    align: 'left'  },
+  { label: 'Age (days)',         col: 'DAYS_OPEN',       align: 'right' },
 ];
+
+const LS_RESOLVED_KEY = 'blockedInvoices_resolved';
 
 function PendingTable({ data }) {
   const [page, setPage]         = useState(1);
   const [pageSize, setPageSize] = useState(25);
+
+  // Resolved state: Set of row keys (INVOICE_DOC_NUM or INVOICE_NUM)
+  const [resolved, setResolved] = useState(() => {
+    try {
+      const saved = localStorage.getItem(LS_RESOLVED_KEY);
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  // Persist resolved set to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(LS_RESOLVED_KEY, JSON.stringify([...resolved]));
+    } catch {}
+  }, [resolved]);
+
+  const toggleResolved = useCallback((key) => {
+    setResolved((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
 
   const {
     processed, sortCol, sortDir, toggleSort,
@@ -164,11 +193,13 @@ function PendingTable({ data }) {
 
   const pageData = processed.slice((page - 1) * pageSize, page * pageSize);
 
+  const resolvedCount = data.filter((r) => resolved.has(r.INVOICE_DOC_NUM || r.INVOICE_NUM)).length;
+
   return (
     <div className="bg-white border border-sap-border rounded-lg shadow-sm p-4">
       <SectionHeader
         title="Invoice Detail"
-        subtitle={`${processed.length} of ${data.length} invoice${data.length !== 1 ? 's' : ''}${activeFilterCount ? ` · ${activeFilterCount} filter${activeFilterCount > 1 ? 's' : ''} active` : ''}`}
+        subtitle={`${processed.length} of ${data.length} invoice${data.length !== 1 ? 's' : ''}${resolvedCount ? ` · ${resolvedCount} resolved` : ''}${activeFilterCount ? ` · ${activeFilterCount} filter${activeFilterCount > 1 ? 's' : ''} active` : ''}`}
         action={
           <div className="flex items-center gap-2">
             {activeFilterCount > 0 && (
@@ -186,9 +217,13 @@ function PendingTable({ data }) {
       />
       <div className="overflow-x-auto">
         <div className="max-h-[32rem] overflow-y-auto">
-          <table className="w-full text-xs min-w-[700px]">
+          <table className="w-full text-xs min-w-[900px]">
             <thead className="sticky top-0 bg-white z-10">
               <tr className="border-b-2 border-sap-border">
+                {/* Resolved column header */}
+                <th className="py-2 pr-3 text-center font-semibold text-sap-subtext uppercase tracking-wide whitespace-nowrap">
+                  Resolved
+                </th>
                 {COLUMNS.map(({ label, col, align }) => (
                   <SortFilterHeader
                     key={col} label={label} col={col}
@@ -201,26 +236,45 @@ function PendingTable({ data }) {
             <tbody>
               {pageData.length === 0 && (
                 <tr>
-                  <td colSpan={COLUMNS.length} className="py-6 text-center text-sap-subtext text-xs">
+                  <td colSpan={COLUMNS.length + 1} className="py-6 text-center text-sap-subtext text-xs">
                     No invoices match the current filters.
                   </td>
                 </tr>
               )}
-              {pageData.map((row, i) => (
-                <tr key={`${row.INVOICE_NUM}-${i}`}
-                  className={`border-b border-sap-border transition-colors ${i % 2 === 0 ? 'bg-white hover:bg-sap-gray' : 'bg-gray-50 hover:bg-sap-gray'}`}
-                >
-                  <td className="py-2.5 pr-4 font-mono font-medium text-sap-blue whitespace-nowrap">{row.INVOICE_NUM}</td>
-                  <td className="py-2.5 pr-4 text-sap-text max-w-[130px] truncate" title={row.VENUE_NAME}>{row.VENUE_NAME || '—'}</td>
-                  <td className="py-2.5 pr-4 text-sap-text max-w-[160px] truncate" title={row.VENDOR_NAME}>{row.VENDOR_NAME}</td>
-                  <td className="py-2.5 pr-4 text-sap-subtext whitespace-nowrap">{row.INVOICE_DATE || '—'}</td>
-                  <td className="py-2.5 pr-4 text-sap-text max-w-[120px] truncate" title={row.REQUESTER}>{row.REQUESTER || '—'}</td>
-                  <td className="py-2.5 pr-4 font-mono text-sap-text whitespace-nowrap">{row.PO_NUMBER || '—'}</td>
-                  <td className="py-2.5 pr-4 font-semibold text-sap-text whitespace-nowrap text-right">{fmtCurrency(row.AMOUNT)}</td>
-                  <td className="py-2.5 pr-4 text-sap-subtext whitespace-nowrap">{row.INVOICE_YEAR || '—'}</td>
-                  <td className="py-2.5 text-right"><AgingChip days={row.DAYS_OPEN} /></td>
-                </tr>
-              ))}
+              {pageData.map((row, i) => {
+                const rowKey = row.INVOICE_DOC_NUM !== '—' ? row.INVOICE_DOC_NUM : row.INVOICE_NUM;
+                const isResolved = resolved.has(rowKey);
+                return (
+                  <tr key={`${rowKey}-${i}`}
+                    className={`border-b border-sap-border transition-colors ${
+                      isResolved
+                        ? 'bg-green-50 opacity-60'
+                        : i % 2 === 0 ? 'bg-white hover:bg-sap-gray' : 'bg-gray-50 hover:bg-sap-gray'
+                    }`}
+                  >
+                    {/* Resolved checkbox */}
+                    <td className="py-2.5 pr-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isResolved}
+                        onChange={() => toggleResolved(rowKey)}
+                        className="w-4 h-4 rounded border-sap-border text-green-600 cursor-pointer accent-green-600"
+                        title={isResolved ? 'Mark as unresolved' : 'Mark as resolved'}
+                      />
+                    </td>
+                    <td className={`py-2.5 pr-4 font-mono font-medium whitespace-nowrap ${isResolved ? 'text-sap-subtext line-through' : 'text-sap-blue'}`}>{row.INVOICE_NUM}</td>
+                    <td className={`py-2.5 pr-4 font-mono whitespace-nowrap ${isResolved ? 'text-sap-subtext' : 'text-sap-text'}`}>{row.INVOICE_DOC_NUM}</td>
+                    <td className="py-2.5 pr-4 text-sap-text max-w-[130px] truncate" title={row.VENUE_NAME}>{row.VENUE_NAME || '—'}</td>
+                    <td className="py-2.5 pr-4 text-sap-text max-w-[160px] truncate" title={row.VENDOR_NAME}>{row.VENDOR_NAME}</td>
+                    <td className="py-2.5 pr-4 text-sap-subtext whitespace-nowrap">{row.INVOICE_DATE || '—'}</td>
+                    <td className="py-2.5 pr-4 text-sap-text max-w-[120px] truncate" title={row.REQUESTER}>{row.REQUESTER || '—'}</td>
+                    <td className="py-2.5 pr-4 font-mono text-sap-text whitespace-nowrap">{row.PO_NUMBER || '—'}</td>
+                    <td className="py-2.5 pr-4 font-semibold text-sap-text whitespace-nowrap text-right">{fmtCurrency(row.AMOUNT)}</td>
+                    <td className="py-2.5 pr-4 text-sap-subtext whitespace-nowrap">{row.INVOICE_YEAR || '—'}</td>
+                    <td className="py-2.5 text-right"><AgingChip days={row.DAYS_OPEN} /></td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -233,7 +287,7 @@ function PendingTable({ data }) {
         onPageSize={(n) => { setPageSize(n); setPage(1); }}
       />
       <p className="mt-2 text-xs text-sap-subtext">
-        Click any column header to sort · Click <span className="font-mono bg-sap-gray px-1 rounded">▼</span> to filter
+        Click any column header to sort · Click <span className="font-mono bg-sap-gray px-1 rounded">▼</span> to filter · Check <strong>Resolved</strong> to mark an invoice as handled
       </p>
     </div>
   );

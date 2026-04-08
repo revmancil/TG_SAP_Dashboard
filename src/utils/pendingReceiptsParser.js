@@ -88,10 +88,14 @@ export function parsePendingReceiptsCSV(rows) {
   rows.forEach((rawRow, i) => {
     const row = norm(rawRow);
 
-    // ── Invoice Number ────────────────────────────────────────────────────
+    // ── Invoice Number (vendor reference) ────────────────────────────────
     const invoiceNum = pick(row,
-      'INVOICE NUMBER', 'INVOICE #', 'INVOICE NO',
-      'BELNR');
+      'INVOICE NUMBER', 'INVOICE #', 'INVOICE NO', 'LIFNR_REF');
+
+    // ── Invoice Document No. (SAP internal MIRO doc number) ──────────────
+    const invoiceDocNum = pick(row,
+      'INVOICE DOCUMENT NO.', 'INVOICE DOCUMENT NO', 'INVOICE DOCUMENT NUMBER',
+      'INVOICE DOC NO', 'INVOICE DOC NUMBER', 'DOCUMENT NUMBER', 'BELNR');
 
     // ── Venue / Department ────────────────────────────────────────────────
     const venueName = pick(row,
@@ -144,18 +148,19 @@ export function parsePendingReceiptsCSV(rows) {
     const agingBucket_ = agingBucket(daysOpen);
 
     parsed.push({
-      INVOICE_NUM:   invoiceNum  || '—',
-      VENUE_NAME:    venueName   || '—',
-      VENDOR_NAME:   vendorName  || '—',
-      INVOICE_DATE:  invoiceDate || '',
-      REQUESTER:     requester   || '—',
-      PO_NUMBER:     poNumber    || '—',
-      AMOUNT:        amount,
-      INVOICE_YEAR:  invoiceYear || '—',
-      AP_COMMENTS:   apComments  || '',
-      FOLLOW_UP:     followUp    || '',
-      DAYS_OPEN:     daysOpen,
-      AGING_BUCKET:  agingBucket_,
+      INVOICE_NUM:     invoiceNum    || '—',
+      INVOICE_DOC_NUM: invoiceDocNum || '—',
+      VENUE_NAME:      venueName     || '—',
+      VENDOR_NAME:     vendorName    || '—',
+      INVOICE_DATE:    invoiceDate   || '',
+      REQUESTER:       requester     || '—',
+      PO_NUMBER:       poNumber      || '—',
+      AMOUNT:          amount,
+      INVOICE_YEAR:    invoiceYear   || '—',
+      AP_COMMENTS:     apComments    || '',
+      FOLLOW_UP:       followUp      || '',
+      DAYS_OPEN:       daysOpen,
+      AGING_BUCKET:    agingBucket_,
     });
   });
 
