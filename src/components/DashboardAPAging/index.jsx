@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { DollarSign, AlertTriangle, Clock, X } from 'lucide-react';
+import { DollarSign, AlertTriangle, Clock, X, Info } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, Cell,
@@ -266,6 +266,8 @@ function DetailTable({ data }) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function DashboardAPAging({ agingData, onUpload, onClear, hasUpload }) {
+  const [parseInfo, setParseInfo] = useState(null);
+
   const kpis = useMemo(() => {
     if (!agingData?.length) return null;
     const sum = (key) => agingData.reduce((s, r) => s + Math.abs(r[key] || 0), 0);
@@ -283,8 +285,21 @@ export default function DashboardAPAging({ agingData, onUpload, onClear, hasUplo
   }, [agingData]);
 
   function handleUpload(rows) {
-    const { data } = parseAPAgingCSV(rows);
-    if (data.length) onUpload(data);
+    setParseInfo(null);
+    const { data, errors } = parseAPAgingCSV(rows);
+    if (data.length) {
+      onUpload(data);
+    } else {
+      // Show diagnostic so we can see what columns the file actually has
+      const detectedCols = rows.length > 0
+        ? Object.keys(rows[0]).map((k) => k.replace(/\u00a0/g, ' ').trim()).join(' | ')
+        : 'No rows found';
+      setParseInfo({
+        totalRows: rows.length,
+        detectedCols,
+        sampleErrors: errors.slice(0, 3),
+      });
+    }
   }
 
   return (
@@ -305,6 +320,30 @@ export default function DashboardAPAging({ agingData, onUpload, onClear, hasUplo
         onClear={onClear}
         hasData={hasUpload}
       />
+
+      {parseInfo && (
+        <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 text-xs text-amber-900 space-y-2">
+          <div className="flex items-center gap-1.5 font-semibold">
+            <Info size={13} />
+            Parser could not match columns — {parseInfo.totalRows} rows received but 0 parsed.
+          </div>
+          <div>
+            <span className="font-semibold">Detected column names:</span>
+            <div className="mt-1 font-mono bg-white border border-amber-200 rounded p-2 break-all leading-5">
+              {parseInfo.detectedCols}
+            </div>
+          </div>
+          {parseInfo.sampleErrors.length > 0 && (
+            <div>
+              <span className="font-semibold">Sample errors:</span>
+              <ul className="list-disc ml-4 mt-0.5">
+                {parseInfo.sampleErrors.map((e, i) => <li key={i}>{e}</li>)}
+              </ul>
+            </div>
+          )}
+          <p className="text-amber-700">Copy the detected column names above and share them so the parser can be updated to match your SAP export.</p>
+        </div>
+      )}
 
       {!hasUpload ? (
         <p className="py-10 text-center text-sap-subtext text-xs">
