@@ -29,8 +29,39 @@ function parseAmt(str) {
   return parseFloat(s) || 0;
 }
 function parseWeeklyRows(rows) {
+  if (!rows.length) return [];
+
+  // If rows still have __EMPTY keys or a SAP title cell as the first key,
+  // the loadSheet header-detection didn't fire or picked the wrong row.
+  // Self-heal: scan rows as raw value arrays to find the real header row.
+  const firstKeys = Object.keys(rows[0]);
+  const looksWrong = firstKeys.some(
+    (k) => k === '__EMPTY' || /^__EMPTY_\d+$/.test(k) ||
+           /pending|report|analysis/i.test(k)
+  );
+
+  let workRows = rows;
+  if (looksWrong) {
+    // Re-interpret each row as an array of values (ignore original keys)
+    for (let i = 0; i < Math.min(rows.length, 15); i++) {
+      const vals = Object.values(rows[i]).map((v) => String(v || '').trim());
+      const upper = vals.map((v) => v.toUpperCase());
+      // Header row: at least one cell == 'DATE' and at least one contains 'LINE'
+      if (upper.some((v) => v === 'DATE') && upper.some((v) => v.includes('LINE'))) {
+        // Rebuild subsequent rows using these header values
+        workRows = rows.slice(i + 1).map((dataRow) => {
+          const dataVals = Object.values(dataRow);
+          const obj = {};
+          vals.forEach((h, j) => { obj[h || `_COL_${j}`] = dataVals[j] ?? ''; });
+          return obj;
+        });
+        break;
+      }
+    }
+  }
+
   const out = [];
-  rows.forEach((rawRow) => {
+  workRows.forEach((rawRow) => {
     const row    = norm(rawRow);
     const date   = pick(row, 'DATE', 'WEEK', 'WEEK ENDING', 'WEEK OF', 'PERIOD');
     const lines  = parseInt(pick(row, '# OF LINES', '# LINES', 'LINES', 'COUNT', '# INVOICES', 'NUMBER OF LINES', 'NUM LINES'), 10);
