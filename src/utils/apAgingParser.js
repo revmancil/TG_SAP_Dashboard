@@ -43,9 +43,13 @@ function parseDate(str) {
 }
 
 function parseAmt(str) {
-  if (!str) return 0;
-  const cleaned = String(str).replace(/[$€£¥\s]/g, '').replace(/,/g, '');
-  return parseFloat(cleaned) || 0;
+  if (str === null || str === undefined || str === '') return 0;
+  let s = String(str).replace(/[$€£¥\s]/g, '').replace(/,/g, '');
+  // SAP accounting format: (1234.56) = -1234.56
+  if (/^\(.*\)$/.test(s)) return -(parseFloat(s.slice(1, -1)) || 0);
+  // SAP trailing-minus format: 1234.56- = -1234.56
+  if (/^[\d.]+[-]$/.test(s)) return -(parseFloat(s.slice(0, -1)) || 0);
+  return parseFloat(s) || 0;
 }
 
 export const AP_AGING_EXPECTED_COLUMNS = [
