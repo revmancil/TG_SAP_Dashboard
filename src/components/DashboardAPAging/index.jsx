@@ -96,12 +96,12 @@ function TopVendors({ data }) {
       map[key].count        += 1;
     });
     return Object.values(map)
-      .filter((v) => v.totalDue > 0)
-      .sort((a, b) => b.totalDue - a.totalDue)
+      .filter((v) => Math.abs(v.totalBalance) > 0.01)
+      .sort((a, b) => Math.abs(b.totalBalance) - Math.abs(a.totalBalance))
       .slice(0, 15);
   }, [data]);
 
-  const maxDue = vendors[0]?.totalDue || 1;
+  const maxBalance = Math.abs(vendors[0]?.totalBalance || 1);
 
   if (vendors.length === 0) return null;
 
@@ -114,7 +114,7 @@ function TopVendors({ data }) {
             <th className="text-left py-2 pr-2 w-6 font-semibold text-sap-subtext uppercase tracking-wide">#</th>
             <th className="text-left py-2 pr-4 font-semibold text-sap-subtext uppercase tracking-wide">Vendor</th>
             <th className="text-right py-2 pr-4 font-semibold text-sap-subtext uppercase tracking-wide">Invoices</th>
-            <th className="text-right py-2 font-semibold text-red-700 uppercase tracking-wide">Past Due</th>
+            <th className="text-right py-2 font-semibold text-red-700 uppercase tracking-wide">AP Balance</th>
           </tr>
         </thead>
         <tbody>
@@ -124,11 +124,11 @@ function TopVendors({ data }) {
               <td className="py-2 pr-4">
                 <div className="font-medium text-sap-text truncate max-w-[200px]" title={v.name}>{v.name}</div>
                 <div className="mt-1 h-1 rounded-full bg-sap-border overflow-hidden">
-                  <div className="h-full rounded-full bg-red-500" style={{ width: `${(v.totalDue / maxDue) * 100}%` }} />
+                  <div className="h-full rounded-full bg-red-500" style={{ width: `${(Math.abs(v.totalBalance) / maxBalance) * 100}%` }} />
                 </div>
               </td>
               <td className="py-2 pr-4 text-right text-sap-subtext">{v.count}</td>
-              <td className="py-2 text-right font-semibold text-red-600">{fmtShort(v.totalDue)}</td>
+              <td className="py-2 text-right font-semibold text-red-600">{fmtShort(Math.abs(v.totalBalance))}</td>
             </tr>
           ))}
         </tbody>
@@ -156,13 +156,14 @@ const COLUMNS = [
 ];
 
 function AmtCell({ value }) {
-  if (!value || Math.abs(value) < 0.01) return <span className="text-sap-subtext">—</span>;
-  return <span className={value < 0 ? 'text-green-700' : 'text-sap-text'}>{fmtCurrency(value)}</span>;
+  if (value === undefined || value === null || Math.abs(value) < 0.01) return <span className="text-sap-subtext">—</span>;
+  // Negative = credit = Topgolf owes vendor (red); Positive = debit = vendor owes Topgolf (green)
+  return <span className={value < 0 ? 'text-red-700' : 'text-green-700'}>{fmtCurrency(value)}</span>;
 }
 
 function PastDueCell({ value }) {
-  if (!value || Math.abs(value) < 0.01) return <span className="text-sap-subtext">—</span>;
-  return <span className="font-semibold text-red-600">{fmtCurrency(value)}</span>;
+  if (value === undefined || value === null || Math.abs(value) < 0.01) return <span className="text-sap-subtext">—</span>;
+  return <span className={`font-semibold ${value < 0 ? 'text-red-600' : 'text-green-700'}`}>{fmtCurrency(value)}</span>;
 }
 
 function DetailTable({ data }) {
@@ -170,7 +171,7 @@ function DetailTable({ data }) {
   const [pageSize, setPageSize] = useState(25);
 
   const { processed, sortCol, sortDir, toggleSort, filters, setFilter, clearAll, activeFilterCount } =
-    useSortFilter(data, 'TOTAL_DUE', 'desc');
+    useSortFilter(data, 'TOTAL_BALANCE', 'asc');
 
   const pageData = processed.slice((page - 1) * pageSize, page * pageSize);
 
@@ -213,7 +214,7 @@ function DetailTable({ data }) {
                 <tr
                   key={`${row.DOC_NUMBER}-${i}`}
                   className={`border-b border-sap-border transition-colors ${
-                    row.TOTAL_DUE > 0
+                    row.TOTAL_DUE < 0
                       ? i % 2 === 0 ? 'bg-red-50 hover:bg-red-100' : 'bg-red-50/60 hover:bg-red-100'
                       : i % 2 === 0 ? 'bg-white hover:bg-sap-gray'  : 'bg-gray-50 hover:bg-sap-gray'
                   }`}
@@ -270,16 +271,18 @@ export default function DashboardAPAging({ agingData, onUpload, onClear, hasUplo
 
   const kpis = useMemo(() => {
     if (!agingData?.length) return null;
-    const sum = (key) => agingData.reduce((s, r) => s + Math.abs(r[key] || 0), 0);
+    // AP amounts are credits (negative) = Topgolf owes vendor.
+    // Sum actual values, then take abs for display magnitude.
+    const sumAbs = (key) => Math.abs(agingData.reduce((s, r) => s + (r[key] || 0), 0));
     return {
-      totalBalance: agingData.reduce((s, r) => s + (r.TOTAL_BALANCE || 0), 0),
-      notDue:       sum('AMT_NOT_DUE'),
-      due1_30:      sum('AMT_1_30'),
-      due31_60:     sum('AMT_31_60'),
-      due61_90:     sum('AMT_61_90'),
-      due91_120:    sum('AMT_91_120'),
-      above120:     sum('AMT_ABOVE_120'),
-      totalDue:     agingData.reduce((s, r) => s + (r.TOTAL_DUE || 0), 0),
+      totalBalance: Math.abs(agingData.reduce((s, r) => s + (r.TOTAL_BALANCE || 0), 0)),
+      notDue:       sumAbs('AMT_NOT_DUE'),
+      due1_30:      sumAbs('AMT_1_30'),
+      due31_60:     sumAbs('AMT_31_60'),
+      due61_90:     sumAbs('AMT_61_90'),
+      due91_120:    sumAbs('AMT_91_120'),
+      above120:     sumAbs('AMT_ABOVE_120'),
+      totalDue:     Math.abs(agingData.reduce((s, r) => s + (r.TOTAL_DUE || 0), 0)),
       docCount:     agingData.length,
     };
   }, [agingData]);
