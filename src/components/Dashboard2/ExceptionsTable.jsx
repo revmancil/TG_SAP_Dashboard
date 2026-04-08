@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { ExternalLink, X } from 'lucide-react';
 import SapBadge from '../shared/SapBadge';
 import SectionHeader from '../shared/SectionHeader';
@@ -23,23 +23,47 @@ function AgeBadge({ days }) {
 }
 
 const COLUMNS = [
-  { label: 'Purchasing Document', col: 'EBELN',          align: 'left'  },
-  { label: 'Supplier',         col: 'VENDOR_NAME',      align: 'left'  },
-  { label: 'Material / Svc',   col: 'TXZ01',            align: 'left'  },
-  { label: 'Requester',        col: 'REQUESTER',        align: 'left'  },
-  { label: 'Qty GR',           col: 'QTY_GR',           align: 'right' },
-  { label: 'Qty IR',           col: 'QTY_IR',           align: 'right' },
-  { label: 'Open Balance',     col: 'BALANCE_QTY',      align: 'right' },
-  { label: 'Open Value',       col: 'BALANCE_VAL',      align: 'right' },
-  { label: 'Age (days)',       col: 'DAYS_OPEN',        align: 'right' },
-  { label: 'Type',             col: 'DISCREPANCY_TYPE', align: 'left'  },
-  { label: 'SAP Txn',         col: 'SAP_TRANSACTION',  align: 'left', noFilter: true },
+  { label: 'Purchasing Document',  col: 'EBELN',           align: 'left'  },
+  { label: 'Invoice Document No.', col: 'INVOICE_NUM',     align: 'left'  },
+  { label: 'Supplier',             col: 'VENDOR_NAME',     align: 'left'  },
+  { label: 'Material / Svc',       col: 'TXZ01',           align: 'left'  },
+  { label: 'Requester',            col: 'REQUESTER',       align: 'left'  },
+  { label: 'Qty GR',               col: 'QTY_GR',          align: 'right' },
+  { label: 'Qty IR',               col: 'QTY_IR',          align: 'right' },
+  { label: 'Open Balance',         col: 'BALANCE_QTY',     align: 'right' },
+  { label: 'Open Value',           col: 'BALANCE_VAL',     align: 'right' },
+  { label: 'Age (days)',           col: 'DAYS_OPEN',       align: 'right' },
+  { label: 'Type',                 col: 'DISCREPANCY_TYPE',align: 'left'  },
+  { label: 'SAP Txn',             col: 'SAP_TRANSACTION', align: 'left', noFilter: true },
 ];
+
+const LS_RESOLVED_KEY = 'mrbr_resolved';
 
 export default function ExceptionsTable({ data }) {
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [page, setPage]             = useState(1);
   const [pageSize, setPageSize]     = useState(25);
+
+  const [resolved, setResolved] = useState(() => {
+    try {
+      const saved = localStorage.getItem(LS_RESOLVED_KEY);
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch { return new Set(); }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem(LS_RESOLVED_KEY, JSON.stringify([...resolved])); }
+    catch {}
+  }, [resolved]);
+
+  const toggleResolved = useCallback((key) => {
+    setResolved((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
 
   const typeFiltered = typeFilter === 'ALL'
     ? data
@@ -51,12 +75,13 @@ export default function ExceptionsTable({ data }) {
   } = useSortFilter(typeFiltered, 'BALANCE_VAL', 'desc');
 
   const pageData = processed.slice((page - 1) * pageSize, page * pageSize);
+  const resolvedCount = data.filter((r) => resolved.has(`${r.EBELN}-${r.EBELP}`)).length;
 
   return (
     <div>
       <SectionHeader
         title="GR/IR Exceptions Detail"
-        subtitle={`${processed.length} of ${data.length} items${activeFilterCount ? ` (${activeFilterCount} filter${activeFilterCount > 1 ? 's' : ''} active)` : ''} — sorted by open value`}
+        subtitle={`${processed.length} of ${data.length} items${resolvedCount ? ` · ${resolvedCount} resolved` : ''}${activeFilterCount ? ` (${activeFilterCount} filter${activeFilterCount > 1 ? 's' : ''} active)` : ''} — sorted by open value`}
         action={
           <div className="flex items-center gap-2 flex-wrap">
             {activeFilterCount > 0 && (
@@ -92,9 +117,12 @@ export default function ExceptionsTable({ data }) {
       />
 
       <div className="overflow-x-auto">
-        <table className="w-full text-xs min-w-[860px]">
+        <table className="w-full text-xs min-w-[960px]">
           <thead>
             <tr className="border-b-2 border-sap-border">
+              <th className="py-2 pr-3 text-center font-semibold text-sap-subtext uppercase tracking-wide whitespace-nowrap">
+                Resolved
+              </th>
               {COLUMNS.map(({ label, col, align, noFilter }) => (
                 <SortFilterHeader
                   key={col}
@@ -114,25 +142,39 @@ export default function ExceptionsTable({ data }) {
           <tbody>
             {pageData.length === 0 && (
               <tr>
-                <td colSpan={COLUMNS.length} className="py-6 text-center text-sap-subtext text-xs">
+                <td colSpan={COLUMNS.length + 1} className="py-6 text-center text-sap-subtext text-xs">
                   No items match the current filters.
                 </td>
               </tr>
             )}
-            {pageData.map((row, i) => (
+            {pageData.map((row, i) => {
+              const rowKey = `${row.EBELN}-${row.EBELP}`;
+              const isResolved = resolved.has(rowKey);
+              return (
               <tr
-                key={`${row.EBELN}-${row.EBELP}-${i}`}
+                key={`${rowKey}-${i}`}
                 className={`border-b border-sap-border transition-colors ${
-                  row.DISCREPANCY_TYPE === 'GR_WITHOUT_IR'
-                    ? i % 2 === 0 ? 'bg-red-50 hover:bg-red-100' : 'bg-red-50/60 hover:bg-red-100'
-                    : i % 2 === 0 ? 'bg-amber-50 hover:bg-amber-100' : 'bg-amber-50/60 hover:bg-amber-100'
+                  isResolved
+                    ? 'bg-green-50 opacity-60'
+                    : row.DISCREPANCY_TYPE === 'GR_WITHOUT_IR'
+                      ? i % 2 === 0 ? 'bg-red-50 hover:bg-red-100' : 'bg-red-50/60 hover:bg-red-100'
+                      : i % 2 === 0 ? 'bg-amber-50 hover:bg-amber-100' : 'bg-amber-50/60 hover:bg-amber-100'
                 }`}
               >
-                <td className="py-2.5 pr-3 font-mono font-medium text-sap-blue whitespace-nowrap">
-                  <div>{row.EBELN}</div>
-                  {row.INVOICE_NUM && row.INVOICE_NUM !== row.EBELN && (
-                    <div className="text-sap-subtext text-xs">{row.INVOICE_NUM}</div>
-                  )}
+                <td className="py-2.5 pr-3 text-center">
+                  <input
+                    type="checkbox"
+                    checked={isResolved}
+                    onChange={() => toggleResolved(rowKey)}
+                    className="w-4 h-4 rounded border-sap-border cursor-pointer accent-green-600"
+                    title={isResolved ? 'Mark as unresolved' : 'Mark as resolved'}
+                  />
+                </td>
+                <td className={`py-2.5 pr-3 font-mono font-medium whitespace-nowrap ${isResolved ? 'text-sap-subtext line-through' : 'text-sap-blue'}`}>
+                  {row.EBELN}
+                </td>
+                <td className="py-2.5 pr-3 font-mono text-sap-text whitespace-nowrap">
+                  {row.INVOICE_NUM && row.INVOICE_NUM !== row.EBELN ? row.INVOICE_NUM : '—'}
                 </td>
                 <td className="py-2.5 pr-3 max-w-[130px] truncate" title={row.VENDOR_NAME}>
                   {row.VENDOR_NAME}
@@ -173,11 +215,12 @@ export default function ExceptionsTable({ data }) {
                   </span>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-sap-border bg-sap-gray">
-              <td colSpan={7} className="py-2 pr-3 text-right text-xs font-semibold text-sap-subtext uppercase tracking-wide">
+              <td colSpan={9} className="py-2 pr-3 text-right text-xs font-semibold text-sap-subtext uppercase tracking-wide">
                 Total Open Value ({processed.length} items)
               </td>
               <td className="py-2 pr-3 text-right text-sm font-bold text-sap-text">
