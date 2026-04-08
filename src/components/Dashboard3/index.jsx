@@ -226,11 +226,12 @@ function WeeklyPanel({ title, subtitle, expectedCols, storageKey, barColor }) {
       setData(parsed);
       lsSave(storageKey, parsed);
     } else {
-      // Show diagnostic so user can see what columns were detected
-      const detectedCols = rows.length > 0
-        ? Object.keys(rows[0]).map((k) => k.replace(/\u00a0/g, ' ').trim()).join(' | ')
-        : 'No columns detected';
-      setParseInfo({ totalRows: rows.length, detectedCols });
+      const rowPreview = rows.slice(0, 5).map((r, i) => {
+        const keys = Object.keys(r).join(' | ');
+        const vals = Object.values(r).map(v => String(v || '').trim()).join(' | ');
+        return `Row ${i}: keys=[${keys}]  vals=[${vals}]`;
+      });
+      setParseInfo({ totalRows: rows.length, rowPreview });
     }
   }
   function handleClear() { setData(null); setParseInfo(null); lsClear(storageKey); }
@@ -273,15 +274,15 @@ function WeeklyPanel({ title, subtitle, expectedCols, storageKey, barColor }) {
         <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 text-xs text-amber-900 space-y-2">
           <div className="flex items-center gap-1.5 font-semibold">
             <Info size={13} />
-            Could not match columns — {parseInfo.totalRows} rows received, 0 parsed.
+            Could not parse — {parseInfo.totalRows} rows received, 0 matched.
           </div>
           <div>
-            <span className="font-semibold">Detected column names in the selected sheet:</span>
-            <div className="mt-1 font-mono bg-white border border-amber-200 rounded p-2 break-all leading-5">
-              {parseInfo.detectedCols}
-            </div>
+            <span className="font-semibold">First 5 rows (keys → values):</span>
+            {parseInfo.rowPreview.map((line, i) => (
+              <div key={i} className="mt-1 font-mono bg-white border border-amber-200 rounded p-1.5 break-all leading-5 text-[10px]">{line}</div>
+            ))}
           </div>
-          <p className="text-amber-700">Make sure you selected the correct sheet (e.g. "Weekly Analysis"). Expected columns: <span className="font-mono">Date · # of Lines · $Amount</span></p>
+          <p className="text-amber-700">Copy the rows above and share so the parser can be fixed.</p>
         </div>
       )}
 
