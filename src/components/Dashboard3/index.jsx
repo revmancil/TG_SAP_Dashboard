@@ -6,7 +6,7 @@ import {
 import FileUpload from '../shared/FileUpload';
 import SectionHeader from '../shared/SectionHeader';
 import KPICard from '../shared/KPICard';
-import { TrendingUp, TrendingDown, Hash, DollarSign } from 'lucide-react';
+import { TrendingUp, TrendingDown, Hash, DollarSign, Info } from 'lucide-react';
 
 // ── Parser ────────────────────────────────────────────────────────────────────
 function norm(obj) {
@@ -185,13 +185,24 @@ function WeeklyTable({ data }) {
 
 // ── Panel (one upload + KPIs + chart + table) ─────────────────────────────────
 function WeeklyPanel({ title, subtitle, expectedCols, storageKey, barColor }) {
-  const [data, setData] = useState(() => lsLoad(storageKey));
+  const [data,      setData]      = useState(() => lsLoad(storageKey));
+  const [parseInfo, setParseInfo] = useState(null);
 
   function handleUpload(rows) {
+    setParseInfo(null);
     const parsed = parseWeeklyRows(rows);
-    if (parsed.length) { setData(parsed); lsSave(storageKey, parsed); }
+    if (parsed.length) {
+      setData(parsed);
+      lsSave(storageKey, parsed);
+    } else {
+      // Show diagnostic so user can see what columns were detected
+      const detectedCols = rows.length > 0
+        ? Object.keys(rows[0]).map((k) => k.replace(/\u00a0/g, ' ').trim()).join(' | ')
+        : 'No columns detected';
+      setParseInfo({ totalRows: rows.length, detectedCols });
+    }
   }
-  function handleClear() { setData(null); lsClear(storageKey); }
+  function handleClear() { setData(null); setParseInfo(null); lsClear(storageKey); }
 
   const kpis = useMemo(() => {
     if (!data?.length) return null;
@@ -227,6 +238,22 @@ function WeeklyPanel({ title, subtitle, expectedCols, storageKey, barColor }) {
         hasData={!!data}
       />
 
+      {parseInfo && (
+        <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 text-xs text-amber-900 space-y-2">
+          <div className="flex items-center gap-1.5 font-semibold">
+            <Info size={13} />
+            Could not match columns — {parseInfo.totalRows} rows received, 0 parsed.
+          </div>
+          <div>
+            <span className="font-semibold">Detected column names in the selected sheet:</span>
+            <div className="mt-1 font-mono bg-white border border-amber-200 rounded p-2 break-all leading-5">
+              {parseInfo.detectedCols}
+            </div>
+          </div>
+          <p className="text-amber-700">Make sure you selected the correct sheet (e.g. "Weekly Analysis"). Expected columns: <span className="font-mono">Date · # of Lines · $Amount</span></p>
+        </div>
+      )}
+
       {!data ? (
         <p className="py-6 text-center text-sap-subtext text-xs">
           Upload the weekly analysis sheet to see trends.
@@ -255,7 +282,9 @@ function WeeklyPanel({ title, subtitle, expectedCols, storageKey, barColor }) {
             </div>
           )}
 
-          <WeeklyChart data={data} barColor={barColor} />
+          <div className="w-full">
+            <WeeklyChart data={data} barColor={barColor} />
+          </div>
           <WeeklyTable data={data} />
         </>
       )}
