@@ -37,8 +37,12 @@ export default function App() {
   // Track whether initial load is done so realtime handlers don't fire before state is ready
   const initialised = useRef(false);
 
-  // ── Initial load from Supabase (with IndexedDB fallback for AP Aging) ────────
+  // ── Initial load from Supabase + one-time localStorage/IndexedDB migration ────
   useEffect(() => {
+    function lsGet(key) {
+      try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch { return null; }
+    }
+
     async function init() {
       const [approvals, mrbr, mb5s, pendingReceipts, apAging] = await Promise.all([
         loadDataset(DS.APPROVALS),
@@ -48,19 +52,34 @@ export default function App() {
         loadDataset(DS.AP_AGING),
       ]);
 
-      if (approvals?.length)       setUploadedApprovals(approvals);
-      if (mrbr?.length)            setUploadedMRBR(mrbr);
-      if (mb5s?.length)            setUploadedMB5S(mb5s);
-      if (pendingReceipts?.length) setUploadedPendingReceipts(pendingReceipts);
+      // For each dataset: use Supabase if populated, otherwise migrate from localStorage
+      const migrateLS = async (supabaseData, lsKey, setter, dsKey) => {
+        if (supabaseData?.length) {
+          setter(supabaseData);
+        } else {
+          const local = lsGet(lsKey);
+          if (local?.length) {
+            setter(local);
+            await saveDataset(dsKey, local); // push to Supabase so everyone sees it
+          }
+        }
+      };
 
-      // AP Aging: use Supabase if available, otherwise migrate from IndexedDB
+      await Promise.all([
+        migrateLS(approvals,       'sap_ap_approvals_v1',        setUploadedApprovals,       DS.APPROVALS),
+        migrateLS(mrbr,            'sap_ap_mrbr_v1',             setUploadedMRBR,            DS.MRBR),
+        migrateLS(mb5s,            'sap_ap_mb5s_v1',             setUploadedMB5S,            DS.MB5S),
+        migrateLS(pendingReceipts, 'sap_ap_pending_receipts_v1', setUploadedPendingReceipts, DS.PENDING_RECEIPTS),
+      ]);
+
+      // AP Aging: Supabase → IndexedDB → nothing
       if (apAging?.length) {
         setUploadedAPAging(apAging);
       } else {
         const idbData = await idbLoad('ap_aging');
         if (idbData?.length) {
           setUploadedAPAging(idbData);
-          saveDataset(DS.AP_AGING, idbData); // migrate to Supabase silently
+          saveDataset(DS.AP_AGING, idbData);
         }
       }
 
