@@ -6,6 +6,7 @@ import SortFilterHeader from '../shared/SortFilterHeader';
 import Pagination from '../shared/Pagination';
 import ExportButtons from '../shared/ExportButtons';
 import { useSortFilter } from '../../hooks/useSortFilter';
+import { loadResolvedSet, markResolved, unmarkResolved, subscribeResolved } from '../../utils/dataService';
 
 function fmt(n) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
@@ -37,39 +38,37 @@ const COLUMNS = [
   { label: 'SAP Txn',             col: 'SAP_TRANSACTION', align: 'left', noFilter: true },
 ];
 
-const LS_RESOLVED_KEY = 'mrbr_resolved_v2';
-
-// Unique key per blocked invoice — EBELN+EBELP alone collides when EBELP defaults to '00010'
+// Unique key per blocked invoice
 function rowKey(r) {
   return `${r.EBELN}|${r.INVOICE_NUM}|${r.BALANCE_VAL}`;
 }
 
 export default function ExceptionsTable({ data }) {
-  const [typeFilter, setTypeFilter]   = useState('ALL');
+  const [typeFilter, setTypeFilter]     = useState('ALL');
   const [hideResolved, setHideResolved] = useState(false);
-  const [page, setPage]               = useState(1);
-  const [pageSize, setPageSize]       = useState(25);
+  const [page, setPage]                 = useState(1);
+  const [pageSize, setPageSize]         = useState(25);
+  const [resolved, setResolved]         = useState(new Set());
 
-  const [resolved, setResolved] = useState(() => {
-    try {
-      const saved = localStorage.getItem(LS_RESOLVED_KEY);
-      return saved ? new Set(JSON.parse(saved)) : new Set();
-    } catch { return new Set(); }
-  });
-
+  // Load resolved set from Supabase on mount + subscribe to live changes
   useEffect(() => {
-    try { localStorage.setItem(LS_RESOLVED_KEY, JSON.stringify([...resolved])); }
-    catch {}
-  }, [resolved]);
+    loadResolvedSet().then(setResolved);
+    const sub = subscribeResolved(() => loadResolvedSet().then(setResolved));
+    return () => sub.unsubscribe();
+  }, []);
 
-  const toggleResolved = useCallback((key) => {
+  const toggleResolved = useCallback(async (key) => {
+    const isResolved = resolved.has(key);
+    // Optimistic UI update
     setResolved((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
-  }, []);
+    // Persist to Supabase
+    if (isResolved) await unmarkResolved(key);
+    else            await markResolved(key);
+  }, [resolved]);
 
   const typeFiltered = data
     .filter((d) => typeFilter === 'ALL' || d.DISCREPANCY_TYPE === typeFilter)

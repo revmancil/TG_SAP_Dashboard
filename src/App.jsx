@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { ClipboardCheck, FileX, PackageCheck, TrendingUp, FileText, BarChart2 } from 'lucide-react';
 import topgolfLogo from './assets/topgolf-logo.png';
 import { buildApprovalsDataset } from './data/approvals';
@@ -6,7 +6,8 @@ import { buildReceiptsDataset } from './data/receipts';
 import { parseApprovalsCSV, APPROVALS_EXPECTED_COLUMNS } from './utils/approvalsParser';
 import { parseReceiptsCSV } from './utils/receiptsParser';
 import { parsePendingReceiptsCSV } from './utils/pendingReceiptsParser';
-import { idbSave, idbLoad, idbDelete } from './utils/idbStorage';
+import { idbLoad } from './utils/idbStorage';
+import { DS, loadDataset, saveDataset, deleteDataset, subscribeDataset } from './utils/dataService';
 import Dashboard1 from './components/Dashboard1';
 import Dashboard3 from './components/Dashboard3';
 import Dashboard4 from './components/Dashboard4';
@@ -23,90 +24,125 @@ const TABS = [
   { id: 'trends',           label: 'Weekly Trends',      icon: TrendingUp,     subtitle: 'Approvals & Receipts' },
 ];
 
-// ── localStorage helpers ──────────────────────────────────────────────────────
-const LS_APPROVALS        = 'sap_ap_approvals_v1';
-const LS_MRBR             = 'sap_ap_mrbr_v1';
-const LS_MB5S             = 'sap_ap_mb5s_v1';
-const LS_PENDING_RECEIPTS = 'sap_ap_pending_receipts_v1';
-// AP Aging uses IndexedDB (too large for localStorage 5 MB limit)
-const IDB_AP_AGING        = 'ap_aging';
-
-function lsLoad(key) {
-  try { const r = localStorage.getItem(key); return r ? JSON.parse(r) : null; }
-  catch { return null; }
-}
-function lsSave(key, data) {
-  try { localStorage.setItem(key, JSON.stringify(data)); }
-  catch { /* storage full — fail silently */ }
-}
-function lsClear(key) {
-  try { localStorage.removeItem(key); } catch { /* ignore */ }
-}
-
 export default function App() {
   const [activeTab, setActiveTab] = useState('approvals');
+  const [loading, setLoading]     = useState(true);
 
-  // ── State — all initialised from localStorage ────────────────────────────
-  const [uploadedApprovals,       setUploadedApprovals]       = useState(() => lsLoad(LS_APPROVALS));
-  const [uploadedMRBR,            setUploadedMRBR]            = useState(() => lsLoad(LS_MRBR));
-  const [uploadedMB5S,            setUploadedMB5S]            = useState(() => lsLoad(LS_MB5S));
-  const [uploadedPendingReceipts, setUploadedPendingReceipts] = useState(() => lsLoad(LS_PENDING_RECEIPTS));
-  // AP Aging loaded async from IndexedDB on mount (too large for localStorage)
-  const [uploadedAPAging, setUploadedAPAging] = useState(null);
-  useEffect(() => { idbLoad(IDB_AP_AGING).then((d) => { if (d?.length) setUploadedAPAging(d); }); }, []);
+  const [uploadedApprovals,       setUploadedApprovals]       = useState(null);
+  const [uploadedMRBR,            setUploadedMRBR]            = useState(null);
+  const [uploadedMB5S,            setUploadedMB5S]            = useState(null);
+  const [uploadedPendingReceipts, setUploadedPendingReceipts] = useState(null);
+  const [uploadedAPAging,         setUploadedAPAging]         = useState(null);
 
-  // Persist to localStorage on every change
-  useEffect(() => { uploadedApprovals       ? lsSave(LS_APPROVALS,        uploadedApprovals)       : lsClear(LS_APPROVALS);       }, [uploadedApprovals]);
-  useEffect(() => { uploadedMRBR            ? lsSave(LS_MRBR,             uploadedMRBR)            : lsClear(LS_MRBR);            }, [uploadedMRBR]);
-  useEffect(() => { uploadedMB5S            ? lsSave(LS_MB5S,             uploadedMB5S)            : lsClear(LS_MB5S);            }, [uploadedMB5S]);
-  useEffect(() => { uploadedPendingReceipts ? lsSave(LS_PENDING_RECEIPTS, uploadedPendingReceipts) : lsClear(LS_PENDING_RECEIPTS); }, [uploadedPendingReceipts]);
-  // AP Aging — persist to IndexedDB
+  // Track whether initial load is done so realtime handlers don't fire before state is ready
+  const initialised = useRef(false);
+
+  // ── Initial load from Supabase (with IndexedDB fallback for AP Aging) ────────
   useEffect(() => {
-    if (uploadedAPAging?.length) idbSave(IDB_AP_AGING, uploadedAPAging);
-    else if (uploadedAPAging === null) idbDelete(IDB_AP_AGING);
-  }, [uploadedAPAging]);
+    async function init() {
+      const [approvals, mrbr, mb5s, pendingReceipts, apAging] = await Promise.all([
+        loadDataset(DS.APPROVALS),
+        loadDataset(DS.MRBR),
+        loadDataset(DS.MB5S),
+        loadDataset(DS.PENDING_RECEIPTS),
+        loadDataset(DS.AP_AGING),
+      ]);
 
-  // ── Sample / fallback data ───────────────────────────────────────────────
+      if (approvals?.length)       setUploadedApprovals(approvals);
+      if (mrbr?.length)            setUploadedMRBR(mrbr);
+      if (mb5s?.length)            setUploadedMB5S(mb5s);
+      if (pendingReceipts?.length) setUploadedPendingReceipts(pendingReceipts);
+
+      // AP Aging: use Supabase if available, otherwise migrate from IndexedDB
+      if (apAging?.length) {
+        setUploadedAPAging(apAging);
+      } else {
+        const idbData = await idbLoad('ap_aging');
+        if (idbData?.length) {
+          setUploadedAPAging(idbData);
+          saveDataset(DS.AP_AGING, idbData); // migrate to Supabase silently
+        }
+      }
+
+      initialised.current = true;
+      setLoading(false);
+    }
+    init();
+  }, []);
+
+  // ── Realtime subscriptions — auto-refresh when any user uploads ──────────────
+  useEffect(() => {
+    const subs = [
+      subscribeDataset(DS.APPROVALS,        () => loadDataset(DS.APPROVALS).then((d)        => { if (d?.length) setUploadedApprovals(d); })),
+      subscribeDataset(DS.MRBR,             () => loadDataset(DS.MRBR).then((d)             => { if (d?.length) setUploadedMRBR(d); else setUploadedMRBR(null); })),
+      subscribeDataset(DS.MB5S,             () => loadDataset(DS.MB5S).then((d)             => { if (d?.length) setUploadedMB5S(d); else setUploadedMB5S(null); })),
+      subscribeDataset(DS.PENDING_RECEIPTS, () => loadDataset(DS.PENDING_RECEIPTS).then((d) => { if (d?.length) setUploadedPendingReceipts(d); else setUploadedPendingReceipts(null); })),
+      subscribeDataset(DS.AP_AGING,         () => loadDataset(DS.AP_AGING).then((d)         => { if (d?.length) setUploadedAPAging(d); else setUploadedAPAging(null); })),
+    ];
+    return () => subs.forEach((s) => s.unsubscribe());
+  }, []);
+
+  // ── Sample / fallback data ───────────────────────────────────────────────────
   const sampleApprovals = useMemo(() => buildApprovalsDataset(), []);
   const sampleReceipts  = useMemo(() => buildReceiptsDataset(),  []);
 
-  const approvalsData     = uploadedApprovals ?? sampleApprovals;
-  // Combine MRBR + MB5S into one dataset for GR/IR dashboard
-  const receiptsData = useMemo(() => {
+  const approvalsData = uploadedApprovals ?? sampleApprovals;
+  const receiptsData  = useMemo(() => {
     const mrbr = uploadedMRBR ?? [];
     const mb5s = uploadedMB5S ?? [];
     const combined = [...mrbr, ...mb5s];
     return combined.length ? combined : sampleReceipts;
   }, [uploadedMRBR, uploadedMB5S, sampleReceipts]);
-  const pendingReceiptsData = uploadedPendingReceipts ?? [];
 
-  // ── Upload handlers ──────────────────────────────────────────────────────
-  function handleApprovalsUpload(rows) {
+  // ── Upload handlers ──────────────────────────────────────────────────────────
+  async function handleApprovalsUpload(rows) {
     const { data } = parseApprovalsCSV(rows);
-    if (data.length) setUploadedApprovals(data);
+    if (!data.length) return;
+    setUploadedApprovals(data);
+    await saveDataset(DS.APPROVALS, data);
   }
-  function handleMRBRUpload(rows) {
+
+  async function handleMRBRUpload(rows) {
     const { data: newData } = parseReceiptsCSV(rows);
     if (!newData.length) return;
     setUploadedMRBR((prev) => {
-      if (!prev?.length) return newData;
-      const existingKeys = new Set(prev.map((r) => `${r.EBELN}|${r.INVOICE_NUM}|${r.BALANCE_VAL}`));
-      const toAdd = newData.filter((r) => !existingKeys.has(`${r.EBELN}|${r.INVOICE_NUM}|${r.BALANCE_VAL}`));
-      return toAdd.length ? [...prev, ...toAdd] : prev;
+      const merged = prev?.length
+        ? (() => {
+            const existingKeys = new Set(prev.map((r) => `${r.EBELN}|${r.INVOICE_NUM}|${r.BALANCE_VAL}`));
+            const toAdd = newData.filter((r) => !existingKeys.has(`${r.EBELN}|${r.INVOICE_NUM}|${r.BALANCE_VAL}`));
+            return toAdd.length ? [...prev, ...toAdd] : prev;
+          })()
+        : newData;
+      saveDataset(DS.MRBR, merged);
+      return merged;
     });
   }
-  function handleMB5SUpload(rows) {
+
+  async function handleMB5SUpload(rows) {
     const { data } = parseReceiptsCSV(rows);
-    if (data.length) setUploadedMB5S(data);
+    if (!data.length) return;
+    setUploadedMB5S(data);
+    await saveDataset(DS.MB5S, data);
   }
-  function handlePendingReceiptsUpload(data) {
-    // Dashboard4 already parses and passes data directly
-    if (data && data.length) setUploadedPendingReceipts(data);
+
+  async function handlePendingReceiptsUpload(data) {
+    if (!data?.length) return;
+    setUploadedPendingReceipts(data);
+    await saveDataset(DS.PENDING_RECEIPTS, data);
   }
-  function handleAPAgingUpload(data) {
-    // DashboardAPAging already parses via parseAPAgingCSV internally
-    if (data?.length) setUploadedAPAging(data);
+
+  async function handleAPAgingUpload(data) {
+    if (!data?.length) return;
+    setUploadedAPAging(data);
+    await saveDataset(DS.AP_AGING, data);
   }
+
+  // ── Clear handlers ───────────────────────────────────────────────────────────
+  async function handleApprovalsClear()       { setUploadedApprovals(null);       await deleteDataset(DS.APPROVALS); }
+  async function handleMRBRClear()            { setUploadedMRBR(null);            await deleteDataset(DS.MRBR); }
+  async function handleMB5SClear()            { setUploadedMB5S(null);            await deleteDataset(DS.MB5S); }
+  async function handlePendingReceiptsClear() { setUploadedPendingReceipts(null); await deleteDataset(DS.PENDING_RECEIPTS); }
+  async function handleAPAgingClear()         { setUploadedAPAging(null);         await deleteDataset(DS.AP_AGING); }
 
   const now = new Date().toLocaleString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
@@ -132,8 +168,13 @@ export default function App() {
             </div>
           </div>
           <div className="text-right hidden sm:block">
-            <p className="text-xs text-blue-300">Last refreshed</p>
-            <p className="text-xs font-medium text-white">{now}</p>
+            {loading
+              ? <p className="text-xs text-blue-300 animate-pulse">Loading shared data…</p>
+              : <>
+                  <p className="text-xs text-blue-300">Last refreshed</p>
+                  <p className="text-xs font-medium text-white">{now}</p>
+                </>
+            }
           </div>
         </div>
       </header>
@@ -183,15 +224,15 @@ export default function App() {
             approvalsData={approvalsData}
             expectedColumns={APPROVALS_EXPECTED_COLUMNS}
             onUpload={handleApprovalsUpload}
-            onClear={() => setUploadedApprovals(null)}
+            onClear={handleApprovalsClear}
             hasUpload={!!uploadedApprovals}
           />
         )}
         {activeTab === 'pending-receipts' && (
           <Dashboard4
-            pendingData={pendingReceiptsData}
+            pendingData={uploadedPendingReceipts ?? []}
             onUpload={handlePendingReceiptsUpload}
-            onClear={() => setUploadedPendingReceipts(null)}
+            onClear={handlePendingReceiptsClear}
             hasUpload={!!uploadedPendingReceipts}
           />
         )}
@@ -199,7 +240,7 @@ export default function App() {
           <DashboardMRBR
             mrbrData={uploadedMRBR ?? []}
             onUpload={handleMRBRUpload}
-            onClear={() => setUploadedMRBR(null)}
+            onClear={handleMRBRClear}
             hasUpload={!!uploadedMRBR}
           />
         )}
@@ -207,7 +248,7 @@ export default function App() {
           <DashboardMB5S
             mb5sData={uploadedMB5S ?? []}
             onUpload={handleMB5SUpload}
-            onClear={() => setUploadedMB5S(null)}
+            onClear={handleMB5SClear}
             hasUpload={!!uploadedMB5S}
           />
         )}
@@ -215,7 +256,7 @@ export default function App() {
           <DashboardAPAging
             agingData={uploadedAPAging ?? []}
             onUpload={handleAPAgingUpload}
-            onClear={() => setUploadedAPAging(null)}
+            onClear={handleAPAgingClear}
             hasUpload={!!uploadedAPAging}
           />
         )}
