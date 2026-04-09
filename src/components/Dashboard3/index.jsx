@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell,
@@ -7,6 +7,7 @@ import FileUpload from '../shared/FileUpload';
 import SectionHeader from '../shared/SectionHeader';
 import KPICard from '../shared/KPICard';
 import { TrendingUp, TrendingDown, Hash, DollarSign, Info } from 'lucide-react';
+import { loadDataset, saveDataset, deleteDataset, subscribeDataset } from '../../utils/dataService';
 
 // ── Parser ────────────────────────────────────────────────────────────────────
 function norm(obj) {
@@ -98,12 +99,14 @@ function parseWeeklyRows(rows) {
   return out;
 }
 
-// ── localStorage ──────────────────────────────────────────────────────────────
+// ── Supabase dataset keys ─────────────────────────────────────────────────────
+const DS_APP_WK  = 'weekly_approvals';
+const DS_RCPT_WK = 'weekly_receipts';
+
+// localStorage keys used only for one-time migration
 const LS_APP_WK  = 'sap_ap_approvals_weekly_v1';
 const LS_RCPT_WK = 'sap_ap_receipts_weekly_v1';
-function lsLoad(key) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch { return null; } }
-function lsSave(key, d) { try { localStorage.setItem(key, JSON.stringify(d)); } catch {} }
-function lsClear(key) { try { localStorage.removeItem(key); } catch {} }
+function lsGet(key) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch { return null; } }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtAmt(n) {
@@ -238,16 +241,39 @@ function WeeklyTable({ data }) {
 }
 
 // ── Panel (one upload + KPIs + chart + table) ─────────────────────────────────
-function WeeklyPanel({ title, subtitle, expectedCols, storageKey, barColor }) {
-  const [data,      setData]      = useState(() => lsLoad(storageKey));
+function WeeklyPanel({ title, subtitle, expectedCols, dsKey, lsKey, barColor }) {
+  const [data,      setData]      = useState(null);
   const [parseInfo, setParseInfo] = useState(null);
 
-  function handleUpload(rows) {
+  // Load from Supabase on mount, migrate from localStorage if empty, subscribe to changes
+  useEffect(() => {
+    async function init() {
+      const remote = await loadDataset(dsKey);
+      if (remote?.length) {
+        setData(remote);
+      } else {
+        // One-time migration from localStorage
+        const local = lsGet(lsKey);
+        if (local?.length) {
+          setData(local);
+          saveDataset(dsKey, local);
+        }
+      }
+    }
+    init();
+
+    const sub = subscribeDataset(dsKey, () =>
+      loadDataset(dsKey).then((d) => { if (d?.length) setData(d); else setData(null); })
+    );
+    return () => sub.unsubscribe();
+  }, [dsKey, lsKey]);
+
+  async function handleUpload(rows) {
     setParseInfo(null);
     const parsed = parseWeeklyRows(rows);
     if (parsed.length) {
       setData(parsed);
-      lsSave(storageKey, parsed);
+      await saveDataset(dsKey, parsed);
     } else {
       const rowPreview = rows.slice(0, 5).map((r, i) => {
         const keys = Object.keys(r).join(' | ');
@@ -257,7 +283,7 @@ function WeeklyPanel({ title, subtitle, expectedCols, storageKey, barColor }) {
       setParseInfo({ totalRows: rows.length, rowPreview });
     }
   }
-  function handleClear() { setData(null); setParseInfo(null); lsClear(storageKey); }
+  async function handleClear() { setData(null); setParseInfo(null); await deleteDataset(dsKey); }
 
   const kpis = useMemo(() => {
     if (!data?.length) return null;
@@ -357,14 +383,16 @@ export default function Dashboard3() {
         title="Pending Approvals"
         subtitle="Weekly approval queue — lines and dollar amount"
         expectedCols={WEEKLY_COLS}
-        storageKey={LS_APP_WK}
+        dsKey={DS_APP_WK}
+        lsKey={LS_APP_WK}
         barColor="#0070F2"
       />
       <WeeklyPanel
         title="Pending Receipts"
         subtitle="Weekly receipts queue — lines and dollar amount"
         expectedCols={WEEKLY_COLS}
-        storageKey={LS_RCPT_WK}
+        dsKey={DS_RCPT_WK}
+        lsKey={LS_RCPT_WK}
         barColor="#2E7D32"
       />
     </div>
