@@ -1,0 +1,15 @@
+{
+  "@microsoft/generator-sharepoint": {
+    "version": "1.20.0",
+    "libraryName": "ap-dashboard",
+    "libraryId": "865cae21-0c43-3d94-adb0-6b5973f6fad9",
+    "environment": "spo",
+    "isCreatingSolution": true,
+    "packageManager": "npm",
+    "solutionName": "ap-dashboard",
+    "solutionShortDescription": "AP Dashboard solution",
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "componentType": "webpart"
+  }
+}

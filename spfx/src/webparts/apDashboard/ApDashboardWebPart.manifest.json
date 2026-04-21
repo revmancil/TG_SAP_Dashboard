@@ -1,0 +1,23 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx/client-side-web-part-manifest.schema.json",
+  "id": "865cae21-0c43-3d94-adb0-6b5973f6fad9",
+  "alias": "ApDashboardWebPart",
+  "componentType": "WebPart",
+  "version": "*",
+  "manifestVersion": 2,
+  "requiresCustomScript": false,
+  "supportedHosts": ["SharePointWebPart", "TeamsPersonalApp", "TeamsTab"],
+  "supportsThemeVariants": false,
+  "preconfiguredEntries": [
+    {
+      "groupId": "5c03119e-3074-46fd-976b-c60198311f70",
+      "group": { "default": "Other" },
+      "title": { "default": "AP Dashboard" },
+      "description": { "default": "SAP Accounts Payable Dashboard — Topgolf Entertainment" },
+      "officeFabricIconFontName": "BarChart",
+      "properties": {
+        "dataFolder": "Shared Documents/AP Dashboard Data"
+      }
+    }
+  ]
+}
